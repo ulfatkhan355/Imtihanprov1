@@ -1,0 +1,25 @@
+# Copy this file to backend/.dev.vars for local `wrangler dev` testing.
+# NEVER commit real secrets to Git!
+
+# Backblaze B2 S3-compatible credentials for bucket: imtihan-pro-assets
+B2_KEY_ID="REPLACE_WITH_B2_KEY_ID"
+B2_APPLICATION_KEY="REPLACE_WITH_B2_APPLICATION_KEY"
+B2_BUCKET_NAME="imtihan-pro-assets"
+B2_BUCKET_ID="1bdf9ec6cd50dbdfad180110"
+B2_ENDPOINT="https://s3.eu-central-003.backblazeb2.com"
+B2_REGION="eu-central-003"
+
+# Worker Security Secrets (generate >=32 random hex/base64 bytes: `openssl rand -hex 32`)
+ADMIN_SESSION_SECRET="REPLACE_WITH_LONG_RANDOM_SECRET"
+ADMIN_BOOTSTRAP_SECRET="REPLACE_WITH_ONE_TIME_BOOTSTRAP_TOKEN"
+AGENT_INGEST_SECRET="REPLACE_WITH_AGENT_INGEST_SECRET"
+
+# Optional Google Sign-In OAuth Web Client ID for ID token verification
+GOOGLE_OAUTH_CLIENT_ID=""
+
+# Optional Server-Side AI Tutor (Stage 6 - kept strictly server-side; never expose to clients)
+GEMINI_API_KEY=""
+AI_PROVIDER_MODEL="gemini-2.5-flash"
+
+# Comma-separated Admin Dashboard / web origins allowed for CORS
+ALLOWED_CORS_ORIGINS="http://localhost:3000,http://127.0.0.1:3000"

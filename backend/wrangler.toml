@@ -1,0 +1,28 @@
+name = "imtihan-pro-api"
+main = "src/index.ts"
+compatibility_date = "2025-02-01"
+
+[vars]
+API_VERSION = "2.0.0"
+B2_BUCKET_NAME = "imtihan-pro-assets"
+B2_BUCKET_ID = "1bdf9ec6cd50dbdfad180110"
+B2_ENDPOINT = "https://s3.eu-central-003.backblazeb2.com"
+B2_REGION = "eu-central-003"
+AI_PROVIDER_MODEL = "gemini-2.5-flash"
+ALLOWED_CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "imtihan-pro-db"
+database_id = "079128c1-203b-477b-8c4b-d6b34daf8bbe"
+migrations_dir = "migrations"
+
+# Required secrets — set via `wrangler secret put <NAME>` before production deploy,
+# or copy `backend/.dev.vars.example` to `backend/.dev.vars` for local `wrangler dev`:
+# - B2_KEY_ID
+# - B2_APPLICATION_KEY
+# - ADMIN_SESSION_SECRET
+# - ADMIN_BOOTSTRAP_SECRET
+# - AGENT_INGEST_SECRET
+# - GOOGLE_OAUTH_CLIENT_ID (optional for Google Sign-In linking)
+# - GEMINI_API_KEY (optional for server-side grounded AI Tutor)

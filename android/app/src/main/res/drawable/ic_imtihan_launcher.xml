@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Silver Blue Navy Rounded Tile Background -->
+    <path
+        android:fillColor="#060E21"
+        android:pathData="M24,6 L84,6 A18,18 0 0,1 102,24 L102,84 A18,18 0 0,1 84,102 L24,102 A18,18 0 0,1 6,84 L6,24 A18,18 0 0,1 24,6 Z" />
+    <path
+        android:fillColor="#112247"
+        android:strokeColor="#28447E"
+        android:strokeWidth="2"
+        android:pathData="M26,10 L82,10 A16,16 0 0,1 98,26 L98,82 A16,16 0 0,1 82,98 L26,98 A16,16 0 0,1 10,82 L10,26 A16,16 0 0,1 26,10 Z" />
+    <!-- Academic Cap Roof -->
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M54,28 L84,42 L54,56 L24,42 Z" />
+    <!-- Cap Highlight -->
+    <path
+        android:fillColor="#60A5FA"
+        android:pathData="M54,28 L84,42 L54,48 L36,39 Z" />
+    <!-- Book / Base Shield -->
+    <path
+        android:fillColor="#F0F6FF"
+        android:pathData="M34,53 L54,62 L74,53 L74,69 L54,78 L34,69 Z" />
+    <!-- Tassel -->
+    <path
+        android:strokeColor="#F59E0B"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M78,45 L78,63" />
+</vector>
