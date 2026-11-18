@@ -1,5 +1,8 @@
 package com.imtihanpro.app.ui.screens
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -25,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Close
@@ -34,8 +38,12 @@ import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Quiz
 import androidx.compose.material.icons.outlined.ReportProblem
-import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.SelfImprovement
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.VolumeOff
+import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -58,6 +66,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -70,6 +79,9 @@ import com.imtihanpro.app.domain.model.PdfResourceUi
 import com.imtihanpro.app.domain.model.SearchResultsUi
 import com.imtihanpro.app.domain.model.SubjectUiModel
 import com.imtihanpro.app.domain.model.UiResourceState
+import com.imtihanpro.app.ui.audio.ImtihanFeedbackController
+import com.imtihanpro.app.ui.components.AnimatedProgressRing
+import com.imtihanpro.app.ui.components.ImtihanBrandEmblem
 import com.imtihanpro.app.ui.components.ImtihanEmptyView
 import com.imtihanpro.app.ui.components.ImtihanErrorView
 import com.imtihanpro.app.ui.components.ImtihanLoadingView
@@ -77,6 +89,8 @@ import com.imtihanpro.app.ui.components.ImtihanProgressBar
 import com.imtihanpro.app.ui.components.OfflineModeBanner
 import com.imtihanpro.app.ui.components.SilverBlueCanvas
 import com.imtihanpro.app.ui.components.SilverBlueCard
+import com.imtihanpro.app.ui.components.SubjectVectorIcon
+import com.imtihanpro.app.ui.components.ZeroPillMetaLine
 import com.imtihanpro.app.ui.theme.LocalImtihanColors
 import com.imtihanpro.app.ui.viewmodel.AppShellState
 import kotlinx.coroutines.delay
@@ -88,7 +102,14 @@ import kotlinx.coroutines.delay
 fun SplashScreen(onFinished: () -> Unit) {
     val colors = LocalImtihanColors.current
     val latestOnFinished by rememberUpdatedState(onFinished)
+    var emblemVisible by remember { mutableStateOf(false) }
+    val emblemScale by animateFloatAsState(
+        targetValue = if (emblemVisible) 1f else 0.72f,
+        animationSpec = spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessLow),
+        label = "splash_scale"
+    )
     LaunchedEffect(Unit) {
+        emblemVisible = true
         delay(850)
         latestOnFinished()
     }
@@ -102,21 +123,23 @@ fun SplashScreen(onFinished: () -> Unit) {
             verticalArrangement = Arrangement.Center
         ) {
             Surface(
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(28.dp),
                 color = colors.cardElevated,
-                border = BorderStroke(1.dp, colors.cardBorder),
-                modifier = Modifier.size(88.dp)
+                border = BorderStroke(1.dp, colors.cyanPulse.copy(alpha = 0.45f)),
+                modifier = Modifier
+                    .size(96.dp)
+                    .graphicsLayer {
+                        scaleX = emblemScale
+                        scaleY = emblemScale
+                    }
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Outlined.School,
-                        contentDescription = "Imtihan Pro logo",
-                        tint = colors.accentBlue,
-                        modifier = Modifier.size(44.dp)
-                    )
+                    ImtihanBrandEmblem(modifier = Modifier.size(64.dp))
                 }
             }
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(22.dp))
+            ZeroPillMetaLine("KPK BISE STUDY OS · 2050 EDITION")
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = "Imtihan Pro",
                 style = MaterialTheme.typography.displaySmall,
@@ -124,20 +147,20 @@ fun SplashScreen(onFinished: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "KPK Board Exam Companion · Learn • Practice • Excel",
+                text = "Classes 9–12 · Offline-First · Zero Distractions",
                 style = MaterialTheme.typography.titleSmall,
                 color = colors.textSecondary,
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(22.dp))
             Text(
-                text = "Study Smart,\nScore High!",
+                text = "Study Smart,\nScore Top in KPK!",
                 style = MaterialTheme.typography.titleMedium,
-                color = colors.textPrimary,
+                color = colors.cyanPulse,
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(36.dp))
-            ImtihanProgressBar(progress = 0.72f, modifier = Modifier.width(160.dp))
+            Spacer(modifier = Modifier.height(34.dp))
+            ImtihanProgressBar(progress = 0.78f, modifier = Modifier.width(176.dp))
         }
     }
 }
@@ -494,6 +517,7 @@ fun HomeDashboardScreen(
     searchQuery: String,
     searchResults: SearchResultsUi = SearchResultsUi(),
     continueChapterTitle: String = "Chapter 1: Physical Quantities & Measurement",
+    feedback: ImtihanFeedbackController? = null,
     onSearchChange: (String) -> Unit,
     onContinueLearning: () -> Unit,
     onViewAllSubjects: () -> Unit,
@@ -508,6 +532,11 @@ fun HomeDashboardScreen(
     onOpenBookmarksFlashcards: () -> Unit = {},
     onOpenDownloads: () -> Unit,
     onOpenProfile: () -> Unit,
+    onToggleSound: () -> Unit = {},
+    onToggleMedium: () -> Unit = {},
+    onStartRapidFire: () -> Unit = {},
+    onOpenFocusTimer: () -> Unit = {},
+    onShareStreak: () -> Unit = {},
     onBannerDisplayed: () -> Unit = {}
 ) {
     val colors = LocalImtihanColors.current
@@ -515,6 +544,10 @@ fun HomeDashboardScreen(
     val activeChapterTitle = metrics.continueChapterTitle ?: continueChapterTitle
     val activeGroupLabel = Stage3To8Engines.STUDY_GROUPS
         .firstOrNull { it.code == shellState.studyGroupCode }?.label ?: shellState.studyGroupCode
+    val daysToExam = remember(shellState.examCountdownDateIso) {
+        Stage3To8Engines.computeDaysUntilExam(shellState.examCountdownDateIso)
+    }
+    val isUrdu = shellState.languageCode.equals("Urdu", ignoreCase = true)
 
     val showHomeAd = Stage3To8Engines.shouldDisplayAd(
         policy = shellState.adPolicy,
@@ -532,7 +565,7 @@ fun HomeDashboardScreen(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
                 OfflineModeBanner(visible = shellState.isOfflineSimulated)
@@ -541,49 +574,81 @@ fun HomeDashboardScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Assalam Alaikum!",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.textSecondary
-                        )
-                        Text(
-                            text = shellState.profile.displayName,
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = colors.textPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Surface(
-                        onClick = onOpenProfile,
-                        shape = CircleShape,
-                        color = colors.cardElevated,
-                        border = BorderStroke(1.dp, colors.cardBorder),
-                        modifier = Modifier.size(44.dp)
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
+                        ImtihanBrandEmblem(modifier = Modifier.size(40.dp))
+                        Column {
                             Text(
-                                text = shellState.profile.displayName.take(1).uppercase(),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = colors.accentBlue
+                                text = "Assalam Alaikum · Class ${shellState.selectedClassLevel}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.cyanPulse
                             )
+                            Text(
+                                text = shellState.profile.displayName,
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = colors.textPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Surface(
+                            onClick = {
+                                feedback?.tap()
+                                onToggleMedium()
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isUrdu) colors.accentBlue else colors.cardElevated,
+                            border = BorderStroke(1.dp, if (isUrdu) colors.cyanPulse else colors.cardBorder)
+                        ) {
+                            Text(
+                                text = if (isUrdu) "اردو" else "EN",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (isUrdu) MaterialTheme.colorScheme.onPrimary else colors.textPrimary,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
+                            )
+                        }
+                        IconButton(onClick = {
+                            onToggleSound()
+                            feedback?.tap()
+                        }) {
+                            Icon(
+                                imageVector = if (shellState.soundEffectsEnabled) Icons.Outlined.VolumeUp else Icons.Outlined.VolumeOff,
+                                contentDescription = if (shellState.soundEffectsEnabled) "Mute SFX" else "Enable SFX",
+                                tint = if (shellState.soundEffectsEnabled) colors.cyanPulse else colors.textMuted
+                            )
+                        }
+                        Surface(
+                            onClick = onOpenProfile,
+                            shape = CircleShape,
+                            color = colors.cardElevated,
+                            border = BorderStroke(1.dp, colors.cyanPulse.copy(alpha = 0.55f)),
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = shellState.profile.displayName.take(1).uppercase(),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = colors.accentBlue
+                                )
+                            }
                         }
                     }
                 }
             }
 
             item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    HeaderTagChip("Class ${shellState.selectedClassLevel}")
-                    HeaderTagChip("${shellState.selectedBoardCode} · ${shellState.selectedSubBoardCode}")
-                    HeaderTagChip(activeGroupLabel)
-                }
+                ZeroPillMetaLine(
+                    text = "${shellState.selectedBoardCode} · ${shellState.selectedSubBoardCode} · $activeGroupLabel · ${shellState.languageCode.uppercase()} MEDIUM"
+                )
             }
 
             item {
@@ -606,7 +671,7 @@ fun HomeDashboardScreen(
                     },
                     placeholder = { Text("Search subjects, chapters, topics, MCQs, PDFs...") },
                     singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -626,7 +691,10 @@ fun HomeDashboardScreen(
             item {
                 SilverBlueCard(
                     elevated = true,
-                    onClick = onContinueLearning,
+                    onClick = {
+                        feedback?.tap()
+                        onContinueLearning()
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -635,11 +703,7 @@ fun HomeDashboardScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Continue Learning",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = colors.accentBlue
-                            )
+                            ZeroPillMetaLine("RESUME STUDY COMMAND DECK")
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = activeChapterTitle,
@@ -648,12 +712,12 @@ fun HomeDashboardScreen(
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = if (metrics.continueChapterPercent > 0) {
-                                    "${metrics.continueChapterPercent}% Complete"
+                                    "${metrics.continueChapterPercent}% Complete · Tap to continue"
                                 } else {
-                                    "Start reading Class ${shellState.selectedClassLevel} syllabus"
+                                    "Ready for Class ${shellState.selectedClassLevel} KPK board mastery"
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.textSecondary
@@ -662,7 +726,7 @@ fun HomeDashboardScreen(
                         Surface(
                             shape = CircleShape,
                             color = colors.accentBlue,
-                            modifier = Modifier.size(44.dp)
+                            modifier = Modifier.size(46.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
@@ -675,6 +739,49 @@ fun HomeDashboardScreen(
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                     ImtihanProgressBar(progress = metrics.continueChapterPercent / 100f)
+                }
+            }
+
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SilverBlueCard(
+                        elevated = true,
+                        onClick = {
+                            feedback?.tap()
+                            onStartRapidFire()
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(Icons.Outlined.Bolt, contentDescription = null, tint = colors.warningGold)
+                            Column {
+                                Text("5-Min Rapid Fire", style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
+                                Text("Past-paper MCQ sprint", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                            }
+                        }
+                    }
+                    SilverBlueCard(
+                        elevated = true,
+                        onClick = {
+                            feedback?.tap()
+                            onOpenFocusTimer()
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(Icons.Outlined.SelfImprovement, contentDescription = null, tint = colors.cyanPulse)
+                            Column {
+                                Text("Focus Studio", style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
+                                Text("Pomodoro + Rain audio", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                            }
+                        }
+                    }
                 }
             }
 
@@ -714,9 +821,28 @@ fun HomeDashboardScreen(
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             items(filtered, key = { it.id }) { subject ->
                                 SilverBlueCard(
-                                    onClick = { onOpenSubject(subject) },
-                                    modifier = Modifier.width(146.dp)
+                                    onClick = {
+                                        feedback?.tap()
+                                        onOpenSubject(subject)
+                                    },
+                                    modifier = Modifier.width(156.dp)
                                 ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        SubjectVectorIcon(
+                                            iconKey = subject.iconKey,
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                        Text(
+                                            text = "${subject.progressPercent}%",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = colors.cyanPulse
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(10.dp))
                                     Text(
                                         text = subject.name,
                                         style = MaterialTheme.typography.titleSmall,
@@ -724,7 +850,6 @@ fun HomeDashboardScreen(
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
-                                    Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = "${subject.totalChapters} Chapters",
                                         style = MaterialTheme.typography.bodySmall,
@@ -746,61 +871,55 @@ fun HomeDashboardScreen(
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        AnimatedProgressRing(
+                            progress = shellState.profile.overallProgressPercent / 100f,
+                            size = 78.dp,
+                            strokeWidth = 7.dp,
+                            centerLabel = "${shellState.profile.overallProgressPercent}%",
+                            centerCaption = "SYLLABUS"
+                        )
                         Column(modifier = Modifier.weight(1f)) {
+                            ZeroPillMetaLine(
+                                text = daysToExam?.let { "$it DAYS TO BISE EXAM" } ?: "BISE EXAM COUNTDOWN READY"
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Your Honest Progress",
-                                style = MaterialTheme.typography.titleSmall,
+                                text = "${metrics.currentStreakDays}d Streak · ${metrics.xpTotal} XP",
+                                style = MaterialTheme.typography.titleMedium,
                                 color = colors.textPrimary
                             )
                             Text(
-                                text = "${shellState.profile.overallProgressPercent}% Syllabus",
-                                style = MaterialTheme.typography.headlineMedium,
-                                color = colors.textPrimary
-                            )
-                            Text(
-                                text = "Today's Goal: ${shellState.profile.dailyGoalPercent}% · ${metrics.currentStreakDays}d streak · ${metrics.xpTotal} XP",
+                                text = "Today's Goal: ${shellState.profile.dailyGoalPercent}% (${shellState.dailyTargetMinutes}m target)",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.textSecondary
                             )
                         }
-                        if (metrics.recentDailyMinutes.isNotEmpty()) {
-                            val maxMin = maxOf(15, metrics.recentDailyMinutes.maxOf { it.second })
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                                verticalAlignment = Alignment.Bottom,
-                                modifier = Modifier.height(54.dp)
-                            ) {
-                                metrics.recentDailyMinutes.forEach { (_, mins) ->
-                                    val fraction = (mins.toFloat() / maxMin.toFloat()).coerceIn(0.12f, 1f)
-                                    Box(
-                                        modifier = Modifier
-                                            .width(9.dp)
-                                            .height((50 * fraction).dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(colors.accentBlue)
-                                    )
-                                }
-                            }
-                        } else {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.LocalFireDepartment,
-                                    contentDescription = null,
-                                    tint = colors.warningGold,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Text(
-                                    text = "Log 1st quiz",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = colors.accentBlue
-                                )
-                            }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = {
+                                feedback?.tap()
+                                onShareStreak()
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(16.dp), tint = colors.cyanPulse)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Share Streak Card", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        OutlinedButton(
+                            onClick = onOpenStudyPlanner,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Outlined.Timer, contentDescription = null, modifier = Modifier.size(16.dp), tint = colors.accentBlue)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(daysToExam?.let { "${it}d Left" } ?: "Exam Date", maxLines = 1)
                         }
                     }
                 }
@@ -817,7 +936,7 @@ fun HomeDashboardScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         QuickAccessCard(
                             title = "Practice & Mocks",
-                            subtitle = "Chapter, topic & board patterns",
+                            subtitle = "OMR & board patterns",
                             icon = Icons.Outlined.Quiz,
                             tint = colors.accentBlue,
                             onClick = onOpenMcqPractice,
@@ -835,7 +954,7 @@ fun HomeDashboardScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         QuickAccessCard(
                             title = "Smart Insights",
-                            subtitle = "Honest readiness & weak radar",
+                            subtitle = "Honest readiness radar",
                             icon = Icons.Outlined.Insights,
                             tint = colors.success,
                             onClick = onOpenSmartInsights,
@@ -843,7 +962,7 @@ fun HomeDashboardScreen(
                         )
                         QuickAccessCard(
                             title = "Study Planner",
-                            subtitle = "Daily goals, tasks & streak",
+                            subtitle = "Daily goals & tasks",
                             icon = Icons.Outlined.CalendarToday,
                             tint = colors.accentBlue,
                             onClick = onOpenStudyPlanner,
@@ -860,8 +979,8 @@ fun HomeDashboardScreen(
                             modifier = Modifier.weight(1f)
                         )
                         QuickAccessCard(
-                            title = "Flashcards & Saved",
-                            subtitle = "SM-2 deck & bookmarks",
+                            title = "3D Flashcards",
+                            subtitle = "Flip & swipe SM-2 deck",
                             icon = Icons.Outlined.BookmarkBorder,
                             tint = colors.warningGold,
                             onClick = onOpenBookmarksFlashcards,

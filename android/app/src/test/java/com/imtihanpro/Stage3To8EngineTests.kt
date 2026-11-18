@@ -235,4 +235,70 @@ class Stage3To8EngineTests {
         assertTrue((state as UiResourceState.Success).data.any { it.id == "sub_kpk9_phy" })
         job.cancel()
     }
+
+    @Test
+    fun `flagship helpers compute exam countdown, Pomodoro XP, BISE weightage, and rapid-fire picks`() {
+        val nowMs = 1_777_593_600_000L // 2026-05-01T00:00:00Z
+        assertEquals(19, Stage3To8Engines.computeDaysUntilExam("2026-05-20", nowMs))
+        assertEquals(0, Stage3To8Engines.computeDaysUntilExam("2026-04-15", nowMs))
+        assertNull(Stage3To8Engines.computeDaysUntilExam(null, nowMs))
+        assertNull(Stage3To8Engines.computeDaysUntilExam("bad-date", nowMs))
+
+        assertEquals(120, Stage3To8Engines.computeFocusSessionXp(50, completedFullSprint = true))
+        assertEquals(70, Stage3To8Engines.computeFocusSessionXp(25, completedFullSprint = true))
+        assertEquals(50, Stage3To8Engines.computeFocusSessionXp(15, completedFullSprint = true))
+        assertEquals(20, Stage3To8Engines.computeFocusSessionXp(10, completedFullSprint = false))
+        assertEquals(0, Stage3To8Engines.computeFocusSessionXp(0, completedFullSprint = false))
+
+        val weightage = Stage3To8Engines.calculateBiseWeightageSummary(
+            listOf(
+                ChapterUiModel(
+                    id = "ch1",
+                    subjectId = "sub1",
+                    chapterNumber = 1,
+                    title = "Measurement",
+                    subtitle = "",
+                    version = "v1",
+                    status = ChapterProgressStatus.IN_PROGRESS,
+                    mcqCount = 5,
+                    solvedCount = 2,
+                    completionPercent = 50,
+                    estimatedSizeKb = 120,
+                    isLocked = false,
+                    boardWeightageMarks = 10
+                ),
+                ChapterUiModel(
+                    id = "ch2",
+                    subjectId = "sub1",
+                    chapterNumber = 2,
+                    title = "Kinematics",
+                    subtitle = "",
+                    version = "v1",
+                    status = ChapterProgressStatus.LOCKED,
+                    mcqCount = 5,
+                    solvedCount = 2,
+                    completionPercent = 0,
+                    estimatedSizeKb = 120,
+                    isLocked = true,
+                    boardWeightageMarks = 12
+                )
+            )
+        )
+        assertEquals(22, weightage.totalMappedMarks)
+        assertEquals(10, weightage.publishedMappedMarks)
+        assertEquals(2, weightage.highYieldChaptersCount)
+
+        val rapidSample = listOf(
+            McqQuestionUi("q_c", "ch1", "Non past paper", emptyList(), "A", "Exp", pastPaperYear = null),
+            McqQuestionUi("q_b", "ch1", "Past paper B", emptyList(), "A", "Exp", pastPaperYear = 2023),
+            McqQuestionUi("q_a", "ch1", "Past paper A", emptyList(), "A", "Exp", pastPaperYear = 2024)
+        )
+        val picked = Stage3To8Engines.pickRapidFireQuestions(rapidSample, count = 2)
+        assertEquals(listOf("q_a", "q_b"), picked.map { it.id })
+
+        val chPhy1 = MockSeedDataSource.chapters.first { it.id == "ch_phy9_01" }
+        assertNotNull(chPhy1.titleUrdu)
+        assertTrue(chPhy1.boardWeightageMarks > 0)
+        assertNotNull(chPhy1.nightBeforeSummary)
+    }
 }

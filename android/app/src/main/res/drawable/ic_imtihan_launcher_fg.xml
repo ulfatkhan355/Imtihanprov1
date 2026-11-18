@@ -1,0 +1,31 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Safe-zone centered foreground emblem (inner 66dp of 108dp canvas) -->
+    <path
+        android:fillColor="#1D4ED8"
+        android:pathData="M28,44 C36,42 46,45 54,51 L54,75 C46,70 36,68 28,70 Z" />
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M80,44 C72,42 62,45 54,51 L54,75 C62,70 72,68 80,70 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M33,50 C39,49 45,51 50,55"
+        android:strokeColor="#E2ECFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.2" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M75,50 C69,49 63,51 58,55"
+        android:strokeColor="#E2ECFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.2" />
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M59,25 C53.5,25.5 49.5,30 50,35.5 C50.4,39.8 53.6,43 57.5,43.7 C52.4,44.2 47.4,40.7 46.5,35.4 C45.5,29.5 50,24 56,24 C57.2,24 58.2,24.3 59,25 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M64,26 L65.5,30 L69.5,31.5 L65.5,33 L64,37 L62.5,33 L58.5,31.5 L62.5,30 Z" />
+</vector>

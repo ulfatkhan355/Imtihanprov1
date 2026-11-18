@@ -39,7 +39,10 @@ data class UserPreferencesState(
     val leaderboardAlias: String? = null,
     val reminderHourLocal: Int = 19,
     val lastSyncedAtIso: String? = null,
-    val configuredApiBaseUrl: String = ApiConfig.defaultBaseUrl
+    val configuredApiBaseUrl: String = ApiConfig.defaultBaseUrl,
+    val soundEffectsEnabled: Boolean = true,
+    val hapticsEnabled: Boolean = true,
+    val readerHighContrastMode: String = "OLED"
 ) {
     fun apiLanguageCode(): String = if (languageCode.equals("Urdu", ignoreCase = true) || languageCode == "ur") "ur" else "en"
 }
@@ -73,6 +76,9 @@ class UserPreferencesDataStore(private val context: Context) {
         val REMINDER_HOUR_LOCAL = intPreferencesKey("reminder_hour_local")
         val LAST_SYNCED_AT_ISO = stringPreferencesKey("last_synced_at_iso")
         val API_BASE_URL = stringPreferencesKey("api_base_url")
+        val SOUND_EFFECTS_ENABLED = booleanPreferencesKey("sound_effects_enabled")
+        val HAPTICS_ENABLED = booleanPreferencesKey("haptics_enabled")
+        val READER_HIGH_CONTRAST_MODE = stringPreferencesKey("reader_high_contrast_mode")
     }
 
     val preferencesFlow: Flow<UserPreferencesState> = context.imtihanDataStore.data.map { prefs ->
@@ -105,7 +111,10 @@ class UserPreferencesDataStore(private val context: Context) {
             leaderboardAlias = prefs[Keys.LEADERBOARD_ALIAS],
             reminderHourLocal = prefs[Keys.REMINDER_HOUR_LOCAL] ?: 19,
             lastSyncedAtIso = prefs[Keys.LAST_SYNCED_AT_ISO],
-            configuredApiBaseUrl = prefs[Keys.API_BASE_URL] ?: ApiConfig.defaultBaseUrl
+            configuredApiBaseUrl = prefs[Keys.API_BASE_URL] ?: ApiConfig.defaultBaseUrl,
+            soundEffectsEnabled = prefs[Keys.SOUND_EFFECTS_ENABLED] ?: true,
+            hapticsEnabled = prefs[Keys.HAPTICS_ENABLED] ?: true,
+            readerHighContrastMode = prefs[Keys.READER_HIGH_CONTRAST_MODE] ?: "OLED"
         )
     }
 
@@ -245,6 +254,24 @@ class UserPreferencesDataStore(private val context: Context) {
             if (!aliasHandle.isNullOrBlank()) {
                 prefs[Keys.LEADERBOARD_ALIAS] = aliasHandle.trim()
             }
+        }
+    }
+
+    suspend fun setSoundEffectsEnabled(enabled: Boolean) {
+        context.imtihanDataStore.edit { prefs ->
+            prefs[Keys.SOUND_EFFECTS_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setHapticsEnabled(enabled: Boolean) {
+        context.imtihanDataStore.edit { prefs ->
+            prefs[Keys.HAPTICS_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setReaderHighContrastMode(mode: String) {
+        context.imtihanDataStore.edit { prefs ->
+            prefs[Keys.READER_HIGH_CONTRAST_MODE] = if (mode == "PAPER") "PAPER" else "OLED"
         }
     }
 }

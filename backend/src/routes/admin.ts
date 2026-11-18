@@ -575,8 +575,9 @@ export async function handleAdminRoutes(
         id, subject_id, chapter_number, title, subtitle, topics_json, current_version,
         publish_status, has_detailed_notes, has_revision_notes, mcq_count,
         solved_questions_count, is_locked_by_default, estimated_size_kb, updated_at_iso,
-        curriculum_version, difficulty_tag, source_reference
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        curriculum_version, difficulty_tag, source_reference,
+        title_urdu, subtitle_urdu, board_weightage_marks, pairing_hint, night_before_summary
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         id,
@@ -596,7 +597,12 @@ export async function handleAdminRoutes(
         nowIso,
         body.curriculumVersion || 'KPK-2026',
         body.difficultyTag || 'medium',
-        body.sourceReference || 'KPK Textbook Board Peshawar'
+        body.sourceReference || 'KPK Textbook Board Peshawar',
+        body.titleUrdu?.trim() || '',
+        body.subtitleUrdu?.trim() || '',
+        body.boardWeightageMarks ?? 0,
+        body.pairingHint?.trim() || '',
+        body.nightBeforeSummary?.trim() || ''
       )
       .run();
 
@@ -626,6 +632,11 @@ export async function handleAdminRoutes(
         curriculum_version = COALESCE(?, curriculum_version),
         difficulty_tag = COALESCE(?, difficulty_tag),
         source_reference = COALESCE(?, source_reference),
+        title_urdu = COALESCE(?, title_urdu),
+        subtitle_urdu = COALESCE(?, subtitle_urdu),
+        board_weightage_marks = COALESCE(?, board_weightage_marks),
+        pairing_hint = COALESCE(?, pairing_hint),
+        night_before_summary = COALESCE(?, night_before_summary),
         updated_at_iso = ?
        WHERE id = ?`
     )
@@ -638,6 +649,11 @@ export async function handleAdminRoutes(
         body.curriculumVersion ?? null,
         body.difficultyTag ?? null,
         body.sourceReference ?? null,
+        body.titleUrdu?.trim() ?? null,
+        body.subtitleUrdu?.trim() ?? null,
+        body.boardWeightageMarks ?? null,
+        body.pairingHint?.trim() ?? null,
+        body.nightBeforeSummary?.trim() ?? null,
         nowIso,
         chapterId
       )

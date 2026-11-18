@@ -24,7 +24,9 @@ data class ImtihanExtendedColors(
     val success: Color,
     val warningGold: Color,
     val danger: Color,
-    val isDark: Boolean
+    val isDark: Boolean,
+    val cyanPulse: Color = SkySilverAccent,
+    val glassTopSheen: Color = GlassSpecularTop,
 )
 
 private val DarkExtended = ImtihanExtendedColors(
@@ -41,7 +43,9 @@ private val DarkExtended = ImtihanExtendedColors(
     success = EmeraldSuccess,
     warningGold = AmberGold,
     danger = CrimsonAlert,
-    isDark = true
+    isDark = true,
+    cyanPulse = SkySilverAccent,
+    glassTopSheen = GlassSpecularTop,
 )
 
 private val LightExtended = ImtihanExtendedColors(
@@ -58,7 +62,9 @@ private val LightExtended = ImtihanExtendedColors(
     success = Color(0xFF16A34A),
     warningGold = Color(0xFFD97706),
     danger = Color(0xFFDC2626),
-    isDark = false
+    isDark = false,
+    cyanPulse = LightBluePrimary,
+    glassTopSheen = Color(0xAAFFFFFF),
 )
 
 val LocalImtihanColors = staticCompositionLocalOf { DarkExtended }

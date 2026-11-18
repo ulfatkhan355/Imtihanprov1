@@ -1,6 +1,7 @@
 package com.imtihanpro.app.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,11 +25,14 @@ import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.CloudDownload
+import androidx.compose.material.icons.outlined.Contrast
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.FormatSize
+import androidx.compose.material.icons.outlined.NightsStay
 import androidx.compose.material.icons.outlined.QuestionAnswer
 import androidx.compose.material.icons.outlined.Quiz
+import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -38,26 +42,34 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.imtihanpro.app.domain.model.ChapterUiModel
 import com.imtihanpro.app.domain.model.ContentBlockUi
 import com.imtihanpro.app.domain.model.UiResourceState
+import com.imtihanpro.app.ui.audio.ImtihanFeedbackController
 import com.imtihanpro.app.ui.components.ContentBlockRenderer
 import com.imtihanpro.app.ui.components.ImtihanEmptyView
 import com.imtihanpro.app.ui.components.ImtihanErrorView
 import com.imtihanpro.app.ui.components.ImtihanLoadingView
 import com.imtihanpro.app.ui.components.SilverBlueCanvas
 import com.imtihanpro.app.ui.components.SilverBlueCard
+import com.imtihanpro.app.ui.components.ZeroPillMetaLine
 import com.imtihanpro.app.ui.theme.LocalImtihanColors
+import com.imtihanpro.app.ui.theme.urduTextStyle
 import kotlinx.coroutines.launch
 
 /**
@@ -287,6 +299,13 @@ fun DetailedNotesScreen(
     chapterTitle: String,
     blocksState: UiResourceState<List<ContentBlockUi>>,
     isBookmarked: Boolean = false,
+    chapterTitleUrdu: String? = null,
+    nightBeforeSummary: String? = null,
+    languageCode: String = "English",
+    readerHighContrastMode: String = "OLED",
+    feedback: ImtihanFeedbackController? = null,
+    onToggleMedium: () -> Unit = {},
+    onToggleContrastMode: () -> Unit = {},
     onToggleBookmark: () -> Unit = {},
     onAskAiTutor: () -> Unit = {},
     onReportIssue: () -> Unit = {},
@@ -297,6 +316,13 @@ fun DetailedNotesScreen(
         subtitle = "Detailed Notes",
         blocksState = blocksState,
         isBookmarked = isBookmarked,
+        chapterTitleUrdu = chapterTitleUrdu,
+        nightBeforeSummary = nightBeforeSummary,
+        languageCode = languageCode,
+        readerHighContrastMode = readerHighContrastMode,
+        feedback = feedback,
+        onToggleMedium = onToggleMedium,
+        onToggleContrastMode = onToggleContrastMode,
         onToggleBookmark = onToggleBookmark,
         onAskAiTutor = onAskAiTutor,
         onReportIssue = onReportIssue,
@@ -312,6 +338,13 @@ fun RevisionNotesScreen(
     chapterTitle: String,
     blocksState: UiResourceState<List<ContentBlockUi>>,
     isBookmarked: Boolean = false,
+    chapterTitleUrdu: String? = null,
+    nightBeforeSummary: String? = null,
+    languageCode: String = "English",
+    readerHighContrastMode: String = "OLED",
+    feedback: ImtihanFeedbackController? = null,
+    onToggleMedium: () -> Unit = {},
+    onToggleContrastMode: () -> Unit = {},
     onToggleBookmark: () -> Unit = {},
     onAskAiTutor: () -> Unit = {},
     onReportIssue: () -> Unit = {},
@@ -322,6 +355,13 @@ fun RevisionNotesScreen(
         subtitle = "Quick Revision Sheet",
         blocksState = blocksState,
         isBookmarked = isBookmarked,
+        chapterTitleUrdu = chapterTitleUrdu,
+        nightBeforeSummary = nightBeforeSummary,
+        languageCode = languageCode,
+        readerHighContrastMode = readerHighContrastMode,
+        feedback = feedback,
+        onToggleMedium = onToggleMedium,
+        onToggleContrastMode = onToggleContrastMode,
         onToggleBookmark = onToggleBookmark,
         onAskAiTutor = onAskAiTutor,
         onReportIssue = onReportIssue,
@@ -337,6 +377,13 @@ fun SolvedQuestionsScreen(
     chapterTitle: String,
     blocksState: UiResourceState<List<ContentBlockUi>>,
     isBookmarked: Boolean = false,
+    chapterTitleUrdu: String? = null,
+    nightBeforeSummary: String? = null,
+    languageCode: String = "English",
+    readerHighContrastMode: String = "OLED",
+    feedback: ImtihanFeedbackController? = null,
+    onToggleMedium: () -> Unit = {},
+    onToggleContrastMode: () -> Unit = {},
     onToggleBookmark: () -> Unit = {},
     onAskAiTutor: () -> Unit = {},
     onReportIssue: () -> Unit = {},
@@ -364,6 +411,13 @@ fun SolvedQuestionsScreen(
         subtitle = "Solved Board Questions & Numericals",
         blocksState = resolvedState,
         isBookmarked = isBookmarked,
+        chapterTitleUrdu = chapterTitleUrdu,
+        nightBeforeSummary = nightBeforeSummary,
+        languageCode = languageCode,
+        readerHighContrastMode = readerHighContrastMode,
+        feedback = feedback,
+        onToggleMedium = onToggleMedium,
+        onToggleContrastMode = onToggleContrastMode,
         onToggleBookmark = onToggleBookmark,
         onAskAiTutor = onAskAiTutor,
         onReportIssue = onReportIssue,
@@ -377,6 +431,13 @@ private fun ReusableNotesScaffold(
     subtitle: String,
     blocksState: UiResourceState<List<ContentBlockUi>>,
     isBookmarked: Boolean,
+    chapterTitleUrdu: String? = null,
+    nightBeforeSummary: String? = null,
+    languageCode: String = "English",
+    readerHighContrastMode: String = "OLED",
+    feedback: ImtihanFeedbackController? = null,
+    onToggleMedium: () -> Unit = {},
+    onToggleContrastMode: () -> Unit = {},
     onToggleBookmark: () -> Unit,
     onAskAiTutor: () -> Unit,
     onReportIssue: () -> Unit,
@@ -384,6 +445,9 @@ private fun ReusableNotesScaffold(
 ) {
     val colors = LocalImtihanColors.current
     var fontScale by remember { mutableFloatStateOf(1f) }
+    var nightBeforeOnly by remember { mutableStateOf(false) }
+    val isUrdu = languageCode.equals("Urdu", ignoreCase = true)
+    val isPaperContrast = readerHighContrastMode == "PAPER"
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
@@ -444,14 +508,20 @@ private fun ReusableNotesScaffold(
                         tint = colors.warningGold
                     )
                 }
-                IconButton(onClick = { fontScale = if (fontScale > 1.15f) 1f else fontScale + 0.1f }) {
+                IconButton(onClick = {
+                    feedback?.tap()
+                    fontScale = if (fontScale > 1.15f) 1f else fontScale + 0.1f
+                }) {
                     Icon(
                         imageVector = Icons.Outlined.FormatSize,
                         contentDescription = "Adjust text size",
                         tint = colors.textPrimary
                     )
                 }
-                IconButton(onClick = onToggleBookmark) {
+                IconButton(onClick = {
+                    feedback?.tap()
+                    onToggleBookmark()
+                }) {
                     Icon(
                         imageVector = if (isBookmarked) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder,
                         contentDescription = "Bookmark notes",
@@ -467,12 +537,143 @@ private fun ReusableNotesScaffold(
                 }
             }
 
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Surface(
+                    onClick = {
+                        feedback?.tap()
+                        nightBeforeOnly = !nightBeforeOnly
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (nightBeforeOnly) colors.warningGold else colors.cardSurface,
+                    border = BorderStroke(1.dp, if (nightBeforeOnly) colors.warningGold else colors.cardBorder)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.NightsStay,
+                            contentDescription = null,
+                            tint = if (nightBeforeOnly) Color.Black else colors.warningGold,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = if (nightBeforeOnly) "Night-Before: ON" else "Night-Before Filter",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (nightBeforeOnly) Color.Black else colors.textPrimary
+                        )
+                    }
+                }
+
+                Surface(
+                    onClick = {
+                        feedback?.tap()
+                        onToggleMedium()
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (isUrdu) colors.accentBlue else colors.cardSurface,
+                    border = BorderStroke(1.dp, if (isUrdu) colors.cyanPulse else colors.cardBorder)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Translate,
+                            contentDescription = null,
+                            tint = if (isUrdu) Color.White else colors.cyanPulse,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = if (isUrdu) "اردو Nastaliq" else "English Medium",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isUrdu) Color.White else colors.textPrimary
+                        )
+                    }
+                }
+
+                Surface(
+                    onClick = {
+                        feedback?.tap()
+                        onToggleContrastMode()
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (isPaperContrast) colors.cyanPulse else colors.cardSurface,
+                    border = BorderStroke(1.dp, if (isPaperContrast) colors.cyanPulse else colors.cardBorder)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Contrast,
+                            contentDescription = null,
+                            tint = if (isPaperContrast) Color.Black else colors.textSecondary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = if (isPaperContrast) "High Contrast" else "OLED Mode",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isPaperContrast) Color.Black else colors.textPrimary
+                        )
+                    }
+                }
+            }
+
             LazyColumn(
                 state = listState,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .then(
+                        if (isPaperContrast) {
+                            Modifier.background(colors.cardElevated.copy(alpha = 0.65f))
+                        } else {
+                            Modifier
+                        }
+                    ),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                if (isUrdu && !chapterTitleUrdu.isNullOrBlank()) {
+                    item {
+                        SilverBlueCard(elevated = true, modifier = Modifier.fillMaxWidth()) {
+                            ZeroPillMetaLine("URDU NASTALIQ CHAPTER TITLE")
+                            Spacer(modifier = Modifier.height(6.dp))
+                            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                                Text(
+                                    text = chapterTitleUrdu,
+                                    style = urduTextStyle(sizeSp = 19f, bold = true),
+                                    color = colors.textPrimary,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (nightBeforeOnly && !nightBeforeSummary.isNullOrBlank()) {
+                    item {
+                        SilverBlueCard(elevated = true, modifier = Modifier.fillMaxWidth()) {
+                            ZeroPillMetaLine("NIGHT-BEFORE EXAM BRIEFING", color = colors.warningGold)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = nightBeforeSummary,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.textPrimary
+                            )
+                        }
+                    }
+                }
+
                 when (blocksState) {
                     is UiResourceState.Loading -> item { ImtihanLoadingView() }
                     is UiResourceState.Error -> item { ImtihanErrorView(blocksState.message, onRetry = {}) }
@@ -481,7 +682,9 @@ private fun ReusableNotesScaffold(
                         itemsIndexed(blocksState.data, key = { _, b -> b.id }) { _, block ->
                             ContentBlockRenderer(
                                 blocks = listOf(block),
-                                fontScaleMultiplier = fontScale
+                                fontScaleMultiplier = fontScale,
+                                nightBeforeOnly = nightBeforeOnly,
+                                onFormulaCopied = { feedback?.tap() }
                             )
                         }
                     }

@@ -293,6 +293,11 @@ interface CurriculumRepository {
 
     fun observePdfLibrary(classLevel: Int, category: String?): Flow<List<PdfResourceUi>> = flowOf(emptyList())
     suspend fun fetchPublicAdPolicy(): Pair<AdPlacementPolicyUi, Boolean> = AdPlacementPolicyUi() to false
+
+    // Flagship 2050 additions: Full-Subject Offline Pack & Focus Pomodoro Sprint XP
+    suspend fun downloadSubjectOfflinePack(subjectId: String): Result<Int> = Result.success(0)
+    suspend fun logFocusPomodoroSession(minutes: Int, completed: Boolean): Int =
+        Stage3To8Engines.computeFocusSessionXp(minutes, completed)
 }
 
 /**
@@ -500,7 +505,9 @@ class OfflineFirstCurriculumRepository(
                                 publishedChapters = it.publishedChapters,
                                 coverageStatus = it.coverageStatus,
                                 updatedAtEpochMs = now,
-                                studyGroupsCsv = it.studyGroups.joinToString(",")
+                                studyGroupsCsv = it.studyGroups.joinToString(","),
+                                pairingSchemeSummary = it.pairingSchemeSummary,
+                                offlinePackSizeMb = it.offlinePackSizeMb
                             )
                         }
                     )
@@ -522,6 +529,7 @@ class OfflineFirstCurriculumRepository(
 
                 val mapped = filtered.map { s ->
                     val doneCount = progressList.count { it.subjectId == s.id && it.isCompleted }
+                    val seedFallback = MockSeedDataSource.subjects.firstOrNull { it.id == s.id }
                     SubjectUiModel(
                         id = s.id,
                         classLevel = s.classLevel,
@@ -532,7 +540,11 @@ class OfflineFirstCurriculumRepository(
                         completedChapters = doneCount,
                         progressPercent = if (s.totalChapters <= 0) 0 else ((doneCount.toFloat() / s.totalChapters.toFloat()) * 100f).toInt().coerceIn(0, 100),
                         hasSeedContent = s.coverageStatus == "active_seed",
-                        studyGroups = s.studyGroupsCsv.split(",").filter { it.isNotBlank() }
+                        studyGroups = s.studyGroupsCsv.split(",").filter { it.isNotBlank() },
+                        description = seedFallback?.description ?: "",
+                        textbookPdfId = seedFallback?.textbookPdfId,
+                        pairingSchemeSummary = s.pairingSchemeSummary ?: seedFallback?.pairingSchemeSummary,
+                        offlinePackSizeMb = s.offlinePackSizeMb
                     )
                 }
                 UiResourceState.Success(mapped, isOfflineFallback = prefs.offlineOnlyMode)
@@ -578,7 +590,12 @@ class OfflineFirstCurriculumRepository(
                                 solvedQuestionsCount = it.solvedQuestionsCount,
                                 isLockedByDefault = it.isLockedByDefault,
                                 estimatedSizeKb = it.estimatedSizeKb,
-                                topicsJson = ApiContentJsonParser.serializeTopics(it.topics)
+                                topicsJson = ApiContentJsonParser.serializeTopics(it.topics),
+                                titleUrdu = it.titleUrdu,
+                                subtitleUrdu = it.subtitleUrdu,
+                                boardWeightageMarks = it.boardWeightageMarks,
+                                pairingHint = it.pairingHint,
+                                nightBeforeSummary = it.nightBeforeSummary
                             )
                         }
                     )
@@ -598,6 +615,7 @@ class OfflineFirstCurriculumRepository(
 
             val dtos = if (cachedMeta.isNotEmpty()) {
                 cachedMeta.map {
+                    val seedFallback = MockSeedDataSource.chapters.firstOrNull { s -> s.id == it.id }
                     com.imtihanpro.app.data.remote.ApiChapterDto(
                         id = it.id,
                         subjectId = it.subjectId,
@@ -612,7 +630,12 @@ class OfflineFirstCurriculumRepository(
                         estimatedSizeKb = it.estimatedSizeKb,
                         topics = runCatching {
                             ApiContentJsonParser.parseTopics(JSONArray(it.topicsJson))
-                        }.getOrElse { emptyList() }
+                        }.getOrElse { emptyList() },
+                        titleUrdu = it.titleUrdu ?: seedFallback?.titleUrdu,
+                        subtitleUrdu = it.subtitleUrdu ?: seedFallback?.subtitleUrdu,
+                        boardWeightageMarks = if (it.boardWeightageMarks > 0) it.boardWeightageMarks else (seedFallback?.boardWeightageMarks ?: 0),
+                        pairingHint = it.pairingHint ?: seedFallback?.pairingHint,
+                        nightBeforeSummary = it.nightBeforeSummary ?: seedFallback?.nightBeforeSummary
                     )
                 }
             } else {
@@ -787,7 +810,10 @@ class OfflineFirstCurriculumRepository(
                                 correctOptionId = m.correctOptionId,
                                 explanation = m.explanation,
                                 difficulty = m.difficulty,
-                                topicTitle = m.topicTitle
+                                topicTitle = m.topicTitle,
+                                questionUrdu = m.questionUrdu,
+                                optionsUrduJson = JSONArray(m.optionsUrdu).toString(),
+                                explanationUrdu = m.explanationUrdu
                             )
                         }
                     )
@@ -801,6 +827,8 @@ class OfflineFirstCurriculumRepository(
         cacheDao.observeMcqs(chapterId).collect { cachedMcqs ->
             val dtos = if (cachedMcqs.isNotEmpty()) {
                 cachedMcqs.map { m ->
+                    val seedFallback = MockSeedDataSource.mcqs.firstOrNull { it.id == m.id }
+                    val urduOpts = ApiContentJsonParser.parseStringList(m.optionsUrduJson)
                     com.imtihanpro.app.data.remote.ApiMcqQuestionDto(
                         id = m.id,
                         chapterId = m.chapterId,
@@ -810,7 +838,10 @@ class OfflineFirstCurriculumRepository(
                         correctOptionId = m.correctOptionId,
                         explanation = m.explanation,
                         difficulty = m.difficulty,
-                        topicTitle = m.topicTitle
+                        topicTitle = m.topicTitle,
+                        questionUrdu = m.questionUrdu ?: seedFallback?.questionUrdu,
+                        optionsUrdu = urduOpts.ifEmpty { seedFallback?.optionsUrdu ?: emptyList() },
+                        explanationUrdu = m.explanationUrdu ?: seedFallback?.explanationUrdu
                     )
                 }
             } else {
@@ -1718,7 +1749,9 @@ class OfflineFirstCurriculumRepository(
                         easeFactor = 2.5,
                         repetitions = 0,
                         nextReviewEpochMs = now,
-                        lastReviewedEpochMs = null
+                        lastReviewedEpochMs = null,
+                        frontUrdu = f.frontUrdu,
+                        backUrdu = f.backUrdu
                     )
                 }
             )
@@ -1743,7 +1776,9 @@ class OfflineFirstCurriculumRepository(
                                 easeFactor = local?.easeFactor ?: f.easeFactor,
                                 repetitions = local?.repetitions ?: f.repetitions,
                                 nextReviewEpochMs = local?.nextReviewEpochMs ?: now,
-                                lastReviewedEpochMs = local?.lastReviewedEpochMs
+                                lastReviewedEpochMs = local?.lastReviewedEpochMs,
+                                frontUrdu = f.frontUrdu ?: local?.frontUrdu,
+                                backUrdu = f.backUrdu ?: local?.backUrdu
                             )
                         }
                     )
@@ -1755,6 +1790,7 @@ class OfflineFirstCurriculumRepository(
             val now = System.currentTimeMillis()
             emit(
                 rows.map { r ->
+                    val seedFallback = MockSeedDataSource.flashcards.firstOrNull { it.id == r.flashcardId }
                     FlashcardUi(
                         id = r.flashcardId,
                         subjectId = r.subjectId,
@@ -1766,7 +1802,9 @@ class OfflineFirstCurriculumRepository(
                         intervalDays = r.intervalDays,
                         easeFactor = r.easeFactor,
                         repetitions = r.repetitions,
-                        isDue = r.nextReviewEpochMs <= now
+                        isDue = r.nextReviewEpochMs <= now,
+                        frontUrdu = r.frontUrdu ?: seedFallback?.frontUrdu,
+                        backUrdu = r.backUrdu ?: seedFallback?.backUrdu
                     )
                 }
             )
@@ -2258,6 +2296,91 @@ class OfflineFirstCurriculumRepository(
         selectedAnswers: Map<String, String>,
         elapsedSeconds: Int
     ): QuizResultUi = computeQuizResult(questions, selectedAnswers, elapsedSeconds)
+
+    override suspend fun downloadSubjectOfflinePack(subjectId: String): Result<Int> {
+        val prefs = preferencesDataStore.preferencesFlow.first()
+        val chapters = MockSeedDataSource.chapters.filter {
+            it.subjectId == subjectId && it.publishStatus == "published"
+        }.ifEmpty {
+            cacheDao.observeChapterMeta(subjectId).first()
+                .filter { it.publishStatus == "published" }
+                .map {
+                    com.imtihanpro.app.data.remote.ApiChapterDto(
+                        id = it.id,
+                        subjectId = it.subjectId,
+                        chapterNumber = it.chapterNumber,
+                        title = it.title,
+                        subtitle = it.subtitle,
+                        currentVersion = it.currentVersion,
+                        publishStatus = it.publishStatus,
+                        mcqCount = it.mcqCount,
+                        solvedQuestionsCount = it.solvedQuestionsCount,
+                        isLockedByDefault = it.isLockedByDefault,
+                        estimatedSizeKb = it.estimatedSizeKb
+                    )
+                }
+        }
+        var cachedCount = 0
+        for (ch in chapters) {
+            val blocks = if (!prefs.offlineOnlyMode) {
+                when (val res = apiClient.fetchChapterContent(prefs.configuredApiBaseUrl, ch.id, "detailed_notes")) {
+                    is ApiResult.Success -> res.data.blocks
+                    is ApiResult.Failure -> MockSeedDataSource.detailedNotesBlocks[ch.id].orEmpty()
+                }
+            } else {
+                MockSeedDataSource.detailedNotesBlocks[ch.id].orEmpty()
+            }
+            val serialized = ApiContentJsonParser.serializeContentBlocks(blocks)
+            offlineDao.upsertCachedChapter(
+                CachedChapterEntity(
+                    chapterId = ch.id,
+                    subjectId = ch.subjectId,
+                    chapterNumber = ch.chapterNumber,
+                    title = ch.title,
+                    contentVersion = ch.currentVersion,
+                    serializedBlocksJson = serialized,
+                    downloadedAtEpochMs = System.currentTimeMillis(),
+                    sizeKb = maxOf(1, serialized.length / 1024)
+                )
+            )
+            val mcqs = if (!prefs.offlineOnlyMode) {
+                when (val res = apiClient.fetchChapterMcqs(prefs.configuredApiBaseUrl, ch.id)) {
+                    is ApiResult.Success -> res.data
+                    is ApiResult.Failure -> MockSeedDataSource.mcqs.filter { it.chapterId == ch.id }
+                }
+            } else {
+                MockSeedDataSource.mcqs.filter { it.chapterId == ch.id }
+            }
+            if (mcqs.isNotEmpty()) {
+                cacheDao.upsertMcqs(
+                    mcqs.map { m ->
+                        CachedMcqEntity(
+                            id = m.id,
+                            chapterId = m.chapterId,
+                            subjectId = m.subjectId,
+                            question = m.question,
+                            optionsJson = ApiContentJsonParser.serializeOptions(m.options),
+                            correctOptionId = m.correctOptionId,
+                            explanation = m.explanation,
+                            difficulty = m.difficulty,
+                            topicTitle = m.topicTitle,
+                            questionUrdu = m.questionUrdu,
+                            optionsUrduJson = JSONArray(m.optionsUrdu).toString(),
+                            explanationUrdu = m.explanationUrdu
+                        )
+                    }
+                )
+            }
+            cachedCount += 1
+        }
+        return Result.success(cachedCount)
+    }
+
+    override suspend fun logFocusPomodoroSession(minutes: Int, completed: Boolean): Int {
+        val safeMinutes = minutes.coerceIn(1, 180)
+        recordActivityDelta(minutesDelta = safeMinutes, quizzesDelta = 0, chaptersDelta = 0)
+        return Stage3To8Engines.computeFocusSessionXp(safeMinutes, completed)
+    }
 }
 
 internal fun computeQuizResult(

@@ -1,7 +1,12 @@
 package com.imtihanpro.app.ui.screens
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -9,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -30,24 +36,35 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.imtihanpro.app.domain.model.FlashcardUi
 import com.imtihanpro.app.domain.model.MistakeRecordUi
 import com.imtihanpro.app.domain.model.QuizHistoryItemUi
 import com.imtihanpro.app.domain.model.SmartInsightsUi
 import com.imtihanpro.app.domain.model.StudentBookmarkUi
+import com.imtihanpro.app.ui.audio.ImtihanFeedbackController
 import com.imtihanpro.app.ui.components.ImtihanEmptyView
 import com.imtihanpro.app.ui.components.ImtihanProgressBar
 import com.imtihanpro.app.ui.components.SilverBlueCanvas
 import com.imtihanpro.app.ui.components.SilverBlueCard
+import com.imtihanpro.app.ui.components.ZeroPillMetaLine
 import com.imtihanpro.app.ui.theme.LocalImtihanColors
+import com.imtihanpro.app.ui.theme.urduTextStyle
 
 /**
  * Smart Insights Screen: Honest Exam Readiness, Weak Chapters Radar, Subject Mastery, Revision Recommendations
@@ -341,14 +358,33 @@ fun BookmarksAndFlashcardsScreen(
     initialTab: Int = 0,
     bookmarks: List<StudentBookmarkUi>,
     flashcards: List<FlashcardUi>,
+    languageCode: String = "English",
+    feedback: ImtihanFeedbackController? = null,
     onBack: () -> Unit,
     onOpenBookmark: (StudentBookmarkUi) -> Unit,
     onRemoveBookmark: (StudentBookmarkUi) -> Unit,
     onReviewFlashcard: (flashcardId: String, quality: Int) -> Unit
 ) {
     val colors = LocalImtihanColors.current
+    val density = LocalDensity.current.density
+    val isUrdu = languageCode.equals("Urdu", ignoreCase = true)
+
     var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) }
-    var revealedIds by remember { mutableStateOf(setOf<String>()) }
+    var activeIndex by remember { mutableIntStateOf(0) }
+    var isFlipped by remember { mutableStateOf(false) }
+    var dragOffsetX by remember { mutableFloatStateOf(0f) }
+
+    val clampedIdx = if (flashcards.isEmpty()) 0 else activeIndex.coerceIn(0, flashcards.lastIndex)
+    val flipRotation by animateFloatAsState(
+        targetValue = if (isFlipped) 180f else 0f,
+        animationSpec = spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMediumLow),
+        label = "flashcard_flip_y"
+    )
+    val animatedDragX by animateFloatAsState(
+        targetValue = dragOffsetX,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "flashcard_drag_x"
+    )
 
     SilverBlueCanvas {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -369,7 +405,7 @@ fun BookmarksAndFlashcardsScreen(
                 containerColor = colors.cardSurface,
                 contentColor = colors.accentBlue
             ) {
-                Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("SM-2 Flashcards (${flashcards.size})") })
+                Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("SM-2 Deck (${flashcards.size})") })
                 Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Saved (${bookmarks.size})") })
             }
 
@@ -383,61 +419,196 @@ fun BookmarksAndFlashcardsScreen(
                             ImtihanEmptyView("No Flashcards Loaded", "Connect or switch to Class 9/10 to study key KPK cards.")
                         }
                     } else {
-                        items(flashcards, key = { it.id }) { card ->
-                            val revealed = card.id in revealedIds
-                            SilverBlueCard(
-                                elevated = card.isDue,
-                                onClick = {
-                                    revealedIds = if (revealed) revealedIds - card.id else revealedIds + card.id
-                                },
-                                modifier = Modifier.fillMaxWidth()
+                        val card = flashcards[clampedIdx]
+                        item(key = "deck_header") {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(card.topicTitle, style = MaterialTheme.typography.labelMedium, color = colors.accentBlue)
-                                    Text(
-                                        text = if (card.isDue) "Due Now" else "Next in ${card.intervalDays}d",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = if (card.isDue) colors.warningGold else colors.success
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(card.front, style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
-                                if (revealed) {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(card.back, style = MaterialTheme.typography.bodyMedium, color = colors.success)
-                                    if (!card.formulaHint.isNullOrBlank()) {
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(card.formulaHint, style = MaterialTheme.typography.labelMedium, color = colors.accentBlue)
+                                ZeroPillMetaLine("3D INTERACTIVE SM-2 DECK · TAP TO FLIP • SWIPE TO ADVANCE")
+                                Text(
+                                    text = "${clampedIdx + 1} / ${flashcards.size}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = colors.accentBlue
+                                )
+                            }
+                        }
+
+                        item(key = "active_3d_card_${card.id}") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .pointerInput(card.id, flashcards.size) {
+                                        detectHorizontalDragGestures(
+                                            onDragEnd = {
+                                                if (dragOffsetX < -95f && clampedIdx < flashcards.lastIndex) {
+                                                    feedback?.tap()
+                                                    activeIndex = clampedIdx + 1
+                                                    isFlipped = false
+                                                } else if (dragOffsetX > 95f && clampedIdx > 0) {
+                                                    feedback?.tap()
+                                                    activeIndex = clampedIdx - 1
+                                                    isFlipped = false
+                                                }
+                                                dragOffsetX = 0f
+                                            },
+                                            onDragCancel = { dragOffsetX = 0f },
+                                            onHorizontalDrag = { _, dragAmount ->
+                                                dragOffsetX = (dragOffsetX + dragAmount).coerceIn(-220f, 220f)
+                                            }
+                                        )
                                     }
-                                    Spacer(modifier = Modifier.height(10.dp))
-                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        listOf(1 to "Again", 3 to "Hard", 4 to "Good", 5 to "Easy").forEach { (q, lbl) ->
-                                            Surface(
-                                                onClick = {
-                                                    onReviewFlashcard(card.id, q)
-                                                    revealedIds = revealedIds - card.id
-                                                },
-                                                modifier = Modifier.weight(1f),
-                                                shape = RoundedCornerShape(10.dp),
-                                                color = colors.cardElevated,
-                                                border = BorderStroke(1.dp, colors.cardBorder)
+                                    .graphicsLayer {
+                                        rotationY = flipRotation
+                                        cameraDistance = 12f * density
+                                        translationX = animatedDragX
+                                        rotationZ = animatedDragX * 0.025f
+                                    }
+                            ) {
+                                val showingBack = flipRotation > 90f
+                                SilverBlueCard(
+                                    elevated = true,
+                                    onClick = {
+                                        feedback?.flipCard()
+                                        isFlipped = !isFlipped
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 240.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .graphicsLayer {
+                                                rotationY = if (showingBack) 180f else 0f
+                                            }
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
                                             ) {
+                                                Text(card.topicTitle, style = MaterialTheme.typography.labelMedium, color = colors.cyanPulse)
                                                 Text(
-                                                    text = lbl,
+                                                    text = if (card.isDue) "DUE NOW" else "NEXT ${card.intervalDays}d",
                                                     style = MaterialTheme.typography.labelSmall,
-                                                    color = colors.textPrimary,
-                                                    modifier = Modifier.padding(vertical = 8.dp),
-                                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                                    color = if (card.isDue) colors.warningGold else colors.success
                                                 )
+                                            }
+
+                                            if (!showingBack) {
+                                                Text(
+                                                    text = card.front,
+                                                    style = MaterialTheme.typography.headlineSmall,
+                                                    color = colors.textPrimary
+                                                )
+                                                if (isUrdu && !card.frontUrdu.isNullOrBlank()) {
+                                                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                                                        Text(
+                                                            text = card.frontUrdu,
+                                                            style = urduTextStyle(sizeSp = 17f),
+                                                            color = colors.cyanPulse,
+                                                            modifier = Modifier.fillMaxWidth()
+                                                        )
+                                                    }
+                                                }
+                                                Spacer(modifier = Modifier.height(16.dp))
+                                                Text(
+                                                    text = "Tap card to flip in 3D · Swipe left/right for next card",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = colors.textMuted
+                                                )
+                                            } else {
+                                                Text("ANSWER & RECALL", style = MaterialTheme.typography.labelSmall, color = colors.success)
+                                                Text(
+                                                    text = card.back,
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    color = colors.success
+                                                )
+                                                if (isUrdu && !card.backUrdu.isNullOrBlank()) {
+                                                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                                                        Text(
+                                                            text = card.backUrdu,
+                                                            style = urduTextStyle(sizeSp = 16f),
+                                                            color = colors.textPrimary,
+                                                            modifier = Modifier.fillMaxWidth()
+                                                        )
+                                                    }
+                                                }
+                                                if (!card.formulaHint.isNullOrBlank()) {
+                                                    Text(
+                                                        text = card.formulaHint,
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        color = colors.cyanPulse
+                                                    )
+                                                }
+                                                Spacer(modifier = Modifier.height(6.dp))
+                                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                    listOf(1 to "Again", 3 to "Hard", 4 to "Good", 5 to "Easy").forEach { (q, lbl) ->
+                                                        Surface(
+                                                            onClick = {
+                                                                if (q >= 4) feedback?.correct() else feedback?.tap()
+                                                                onReviewFlashcard(card.id, q)
+                                                                isFlipped = false
+                                                                if (clampedIdx < flashcards.lastIndex) {
+                                                                    activeIndex = clampedIdx + 1
+                                                                }
+                                                            },
+                                                            modifier = Modifier.weight(1f),
+                                                            shape = RoundedCornerShape(10.dp),
+                                                            color = colors.cardElevated,
+                                                            border = BorderStroke(1.dp, if (q >= 4) colors.success.copy(alpha = 0.5f) else colors.cardBorder)
+                                                        ) {
+                                                            Text(
+                                                                text = lbl,
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                color = colors.textPrimary,
+                                                                modifier = Modifier.padding(vertical = 10.dp),
+                                                                textAlign = TextAlign.Center
+                                                            )
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
-                                } else {
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text("Tap card to reveal answer & rate recall", style = MaterialTheme.typography.bodySmall, color = colors.textMuted)
+                                }
+                            }
+                        }
+
+                        item(key = "deck_nav") {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        feedback?.tap()
+                                        if (clampedIdx > 0) {
+                                            activeIndex = clampedIdx - 1
+                                            isFlipped = false
+                                        }
+                                    },
+                                    enabled = clampedIdx > 0
+                                ) {
+                                    Text("< Previous Card")
+                                }
+                                Button(
+                                    onClick = {
+                                        feedback?.tap()
+                                        if (clampedIdx < flashcards.lastIndex) {
+                                            activeIndex = clampedIdx + 1
+                                            isFlipped = false
+                                        }
+                                    },
+                                    enabled = clampedIdx < flashcards.lastIndex,
+                                    colors = ButtonDefaults.buttonColors(containerColor = colors.accentBlue)
+                                ) {
+                                    Text("Next Card >")
                                 }
                             }
                         }

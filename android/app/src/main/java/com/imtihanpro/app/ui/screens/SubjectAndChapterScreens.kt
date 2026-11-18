@@ -45,6 +45,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.outlined.CloudDownload
 import com.imtihanpro.app.domain.engine.Stage3To8Engines
 import com.imtihanpro.app.domain.model.ChapterProgressStatus
 import com.imtihanpro.app.domain.model.ChapterUiModel
@@ -57,7 +59,10 @@ import com.imtihanpro.app.ui.components.ImtihanLoadingView
 import com.imtihanpro.app.ui.components.ImtihanProgressBar
 import com.imtihanpro.app.ui.components.SilverBlueCanvas
 import com.imtihanpro.app.ui.components.SilverBlueCard
+import com.imtihanpro.app.ui.components.SubjectVectorIcon
+import com.imtihanpro.app.ui.components.ZeroPillMetaLine
 import com.imtihanpro.app.ui.theme.LocalImtihanColors
+import com.imtihanpro.app.ui.theme.urduTextStyle
 
 /**
  * Screen 4: Subject Listing (2-column grid matching Silver Blue reference + Study Group label)
@@ -107,6 +112,22 @@ fun SubjectListingScreen(
                                 onClick = { onSelectSubject(subject) },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    SubjectVectorIcon(
+                                        iconKey = subject.iconKey,
+                                        modifier = Modifier.size(34.dp)
+                                    )
+                                    Text(
+                                        text = "${subject.progressPercent}%",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = colors.cyanPulse
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(10.dp))
                                 Text(
                                     text = subject.name,
                                     style = MaterialTheme.typography.titleMedium,
@@ -186,15 +207,23 @@ fun SubjectDetailsScreen(
     subject: SubjectUiModel?,
     chaptersState: UiResourceState<List<ChapterUiModel>>,
     subjectPdfs: List<PdfResourceUi> = emptyList(),
+    languageCode: String = "English",
+    offlinePackStatusMessage: String? = null,
     onBack: () -> Unit,
     onOpenChapter: (ChapterUiModel) -> Unit,
     onOpenAllChapters: () -> Unit,
     onOpenPastPapers: () -> Unit,
     onOpenPdf: (PdfResourceUi) -> Unit = {},
-    onStartSubjectMock: () -> Unit = {}
+    onStartSubjectMock: () -> Unit = {},
+    onDownloadOfflinePack: () -> Unit = {},
+    onClearOfflinePackStatus: () -> Unit = {}
 ) {
     val colors = LocalImtihanColors.current
     var selectedTab by remember { mutableIntStateOf(0) }
+    val chaptersList = (chaptersState as? UiResourceState.Success)?.data.orEmpty()
+    val biseSummary = remember(chaptersList) {
+        Stage3To8Engines.calculateBiseWeightageSummary(chaptersList)
+    }
 
     SilverBlueCanvas {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -225,34 +254,96 @@ fun SubjectDetailsScreen(
             ) {
                 item {
                     SilverBlueCard(elevated = true, modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = subject?.name ?: "Physics",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = colors.textPrimary
-                        )
-                        Text(
-                            text = "${subject?.totalChapters ?: 9} Chapters · ${subject?.boardCode ?: "KPK"} Class ${subject?.classLevel ?: 9}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.textSecondary
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            SubjectVectorIcon(
+                                iconKey = subject?.iconKey ?: "physics",
+                                modifier = Modifier.size(40.dp)
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = subject?.name ?: "Physics",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = colors.textPrimary
+                                )
+                                Text(
+                                    text = "${subject?.totalChapters ?: 9} Chapters · ${subject?.boardCode ?: "KPK"} Class ${subject?.classLevel ?: 9}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.textSecondary
+                                )
+                            }
+                        }
                         if (!subject?.description.isNullOrBlank()) {
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = subject!!.description,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.textMuted
                             )
                         }
+                        if (!subject?.pairingSchemeSummary.isNullOrBlank() || biseSummary.totalMappedMarks > 0) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = colors.canvasDeep.copy(alpha = 0.7f),
+                                border = BorderStroke(1.dp, colors.cyanPulse.copy(alpha = 0.35f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    ZeroPillMetaLine(
+                                        text = "KPK BISE PAIRING · ${biseSummary.totalMappedMarks} MAPPED MARKS (${biseSummary.highYieldChaptersCount} HIGH-YIELD CH)"
+                                    )
+                                    if (!subject?.pairingSchemeSummary.isNullOrBlank()) {
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = subject!!.pairingSchemeSummary!!,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = colors.textPrimary
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         Spacer(modifier = Modifier.height(10.dp))
                         ImtihanProgressBar(progress = (subject?.progressPercent ?: 0) / 100f)
                         Spacer(modifier = Modifier.height(12.dp))
-                        OutlinedButton(
-                            onClick = onStartSubjectMock,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Outlined.Quiz, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.padding(4.dp))
-                            Text("Start Subject Mock Test")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = onStartSubjectMock,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Outlined.Quiz, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Subject Mock", maxLines = 1)
+                            }
+                            Button(
+                                onClick = onDownloadOfflinePack,
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = colors.accentBlue)
+                            ) {
+                                Icon(Icons.Outlined.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Save Pack (${"%.1f".format(subject?.offlinePackSizeMb ?: 0.6)}M)", maxLines = 1)
+                            }
+                        }
+                        if (!offlinePackStatusMessage.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Surface(
+                                onClick = onClearOfflinePackStatus,
+                                shape = RoundedCornerShape(10.dp),
+                                color = colors.success.copy(alpha = 0.14f),
+                                border = BorderStroke(1.dp, colors.success.copy(alpha = 0.4f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "$offlinePackStatusMessage (Tap to dismiss)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.success,
+                                    modifier = Modifier.padding(10.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -283,7 +374,11 @@ fun SubjectDetailsScreen(
                         is UiResourceState.Empty -> item { ImtihanEmptyView(chaptersState.title, chaptersState.description) }
                         is UiResourceState.Success -> {
                             items(chaptersState.data, key = { it.id }) { chapter ->
-                                ChapterRowCard(chapter = chapter, onClick = { onOpenChapter(chapter) })
+                                ChapterRowCard(
+                                    chapter = chapter,
+                                    preferUrdu = languageCode.equals("Urdu", ignoreCase = true),
+                                    onClick = { onOpenChapter(chapter) }
+                                )
                             }
                             item {
                                 Spacer(modifier = Modifier.height(4.dp))
@@ -386,7 +481,11 @@ fun ChapterListingScreen(
 }
 
 @Composable
-private fun ChapterRowCard(chapter: ChapterUiModel, onClick: () -> Unit) {
+private fun ChapterRowCard(
+    chapter: ChapterUiModel,
+    preferUrdu: Boolean = false,
+    onClick: () -> Unit
+) {
     val colors = LocalImtihanColors.current
     val statusIcon = when (chapter.status) {
         ChapterProgressStatus.COMPLETED -> Icons.Outlined.CheckCircle
@@ -432,13 +531,29 @@ private fun ChapterRowCard(chapter: ChapterUiModel, onClick: () -> Unit) {
                     style = MaterialTheme.typography.titleSmall,
                     color = colors.textPrimary
                 )
+                if (preferUrdu && !chapter.titleUrdu.isNullOrBlank()) {
+                    Text(
+                        text = chapter.titleUrdu,
+                        style = urduTextStyle(sizeSp = 15f),
+                        color = colors.cyanPulse
+                    )
+                }
+                val marksPart = if (chapter.boardWeightageMarks > 0) " · ${chapter.boardWeightageMarks} BISE Marks" else ""
                 val topicsPart = if (chapter.topics.isNotEmpty()) " · ${chapter.topics.size} topics" else ""
-                val diffPart = chapter.difficultyTag?.let { " · ${it.replaceFirstChar { c -> c.uppercase() }}" } ?: ""
                 Text(
-                    text = "$statusText · ${chapter.mcqCount} MCQs$topicsPart$diffPart",
+                    text = "$statusText · ${chapter.mcqCount} MCQs$topicsPart$marksPart",
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textSecondary
                 )
+                if (!chapter.pairingHint.isNullOrBlank()) {
+                    Text(
+                        text = chapter.pairingHint,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.accentBlue,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
             Icon(
                 imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,

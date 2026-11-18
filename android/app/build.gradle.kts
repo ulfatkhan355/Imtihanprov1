@@ -18,17 +18,41 @@ android {
         applicationId = "com.imtihanpro.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.0.0-stage2"
+        versionCode = 3
+        versionName = "2.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Configurable API Base URL injected at build time for Stage 2 Cloudflare Worker (imtihan-pro-api)
+        // Configurable API Base URL injected at build time for Cloudflare Worker (imtihan-pro-api)
         buildConfigField(
             "String",
             "API_BASE_URL",
             "\"$configuredApiBaseUrl\""
         )
+    }
+
+    val keystorePath = (project.findProperty("IMTIHAN_KEYSTORE_FILE") as String?)
+        ?: System.getenv("IMTIHAN_KEYSTORE_FILE")
+    val keystorePassword = (project.findProperty("IMTIHAN_KEYSTORE_PASSWORD") as String?)
+        ?: System.getenv("IMTIHAN_KEYSTORE_PASSWORD")
+    val keyAliasName = (project.findProperty("IMTIHAN_KEY_ALIAS") as String?)
+        ?: System.getenv("IMTIHAN_KEY_ALIAS")
+    val keyPasswordValue = (project.findProperty("IMTIHAN_KEY_PASSWORD") as String?)
+        ?: System.getenv("IMTIHAN_KEY_PASSWORD")
+
+    signingConfigs {
+        if (!keystorePath.isNullOrBlank() &&
+            !keystorePassword.isNullOrBlank() &&
+            !keyAliasName.isNullOrBlank() &&
+            !keyPasswordValue.isNullOrBlank()
+        ) {
+            create("release") {
+                storeFile = file(keystorePath)
+                storePassword = keystorePassword
+                keyAlias = keyAliasName
+                keyPassword = keyPasswordValue
+            }
+        }
     }
 
     buildTypes {
@@ -39,11 +63,11 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // Note: Provide a release keystore signingConfig before Play Store distribution.
         }
     }
 

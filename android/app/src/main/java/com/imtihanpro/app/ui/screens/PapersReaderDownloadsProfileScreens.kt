@@ -745,9 +745,13 @@ fun ProfileSettingsScreen(
     onToggleDarkMode: (Boolean) -> Unit,
     onToggleOfflineSimulated: (Boolean) -> Unit,
     onToggleNotifications: (Boolean) -> Unit,
+    onToggleSoundEffects: (Boolean) -> Unit = {},
+    onToggleHaptics: (Boolean) -> Unit = {},
+    onSetReaderHighContrastMode: (String) -> Unit = {},
     onCycleLanguage: () -> Unit,
     onOpenDownloads: () -> Unit,
     onChangeClassOrBoard: () -> Unit,
+    onOpenFocusTimer: () -> Unit = {},
     onOpenStudyPlanner: () -> Unit = {},
     onOpenMotivation: () -> Unit = {},
     onOpenSmartInsights: () -> Unit = {},
@@ -835,10 +839,11 @@ fun ProfileSettingsScreen(
 
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ProfileNavRow("Focus Pomodoro Studio", "15m / 25m / 50m study sprints & ambient audio", onOpenFocusTimer)
                     ProfileNavRow("Smart Learning Insights", "Honest exam readiness & weak chapters", onOpenSmartInsights)
                     ProfileNavRow("Study Planner & Goals", "Target ${shellState.dailyTargetMinutes}m/day · tasks & countdown", onOpenStudyPlanner)
                     ProfileNavRow("Achievements & Leaderboard", "Badges, weekly challenges & opt-in rank", onOpenMotivation)
-                    ProfileNavRow("Flashcards & Bookmarks", "SM-2 review deck & saved chapters", onOpenBookmarksFlashcards)
+                    ProfileNavRow("Flashcards & Bookmarks", "3D SM-2 review deck & saved chapters", onOpenBookmarksFlashcards)
                     ProfileNavRow("Quiz & Mock History", "Inspect past exam percentages & marks", onOpenQuizHistory)
                     ProfileNavRow("Report Content Error / Feedback", "Submit MCQ fixes or suggestions", onOpenFeedback)
                 }
@@ -903,9 +908,30 @@ fun ProfileSettingsScreen(
                 SilverBlueCard(modifier = Modifier.fillMaxWidth()) {
                     SettingToggleRow(
                         title = "Theme",
-                        subtitle = if (shellState.isDarkMode) "Dark Mode (Primary)" else "Light Mode",
+                        subtitle = if (shellState.isDarkMode) "2050 OLED Obsidian Dark (Primary)" else "Ice-Glass Light Mode",
                         checked = shellState.isDarkMode,
                         onCheckedChange = onToggleDarkMode
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    SettingToggleRow(
+                        title = "Quiz Sound Effects",
+                        subtitle = "Crisp procedural chimes & card-flip SFX",
+                        checked = shellState.soundEffectsEnabled,
+                        onCheckedChange = onToggleSoundEffects
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    SettingToggleRow(
+                        title = "Haptic Feedback",
+                        subtitle = "Tactile vibration on MCQ bubbles & 3D flips",
+                        checked = shellState.hapticsEnabled,
+                        onCheckedChange = onToggleHaptics
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    SettingToggleRow(
+                        title = "High-Contrast Notes Reader",
+                        subtitle = if (shellState.readerHighContrastMode == "PAPER") "Paper Contrast Active" else "OLED Contrast Active",
+                        checked = shellState.readerHighContrastMode == "PAPER",
+                        onCheckedChange = { paper -> onSetReaderHighContrastMode(if (paper) "PAPER" else "OLED") }
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     SettingToggleRow(

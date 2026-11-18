@@ -2,6 +2,7 @@ package com.imtihanpro.app.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material3.HorizontalDivider
@@ -29,49 +32,73 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.imtihanpro.app.domain.model.ContentBlockUi
+import com.imtihanpro.app.ui.theme.ImtihanMonoFamily
 import com.imtihanpro.app.ui.theme.LocalImtihanColors
 
 /**
  * Single reusable structured educational content renderer.
- * Supports all 11 content types without duplicating screen layouts per chapter.
+ * Supports all 11 content types, tap-to-copy formulas, and 1-tap "Night Before Exam" high-yield filtering.
  */
 @Composable
 fun ContentBlockRenderer(
     blocks: List<ContentBlockUi>,
     fontScaleMultiplier: Float = 1f,
+    nightBeforeOnly: Boolean = false,
+    onFormulaCopied: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val visibleBlocks = remember(blocks, nightBeforeOnly) {
+        if (!nightBeforeOnly) blocks
+        else blocks.filter {
+            it is ContentBlockUi.Heading ||
+                it is ContentBlockUi.ImportantDefinition ||
+                it is ContentBlockUi.MathExpression ||
+                it is ContentBlockUi.HighlightedExamPoint
+        }
+    }
+
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        blocks.forEach { block ->
-            RenderSingleBlock(block = block, fontScaleMultiplier = fontScaleMultiplier)
+        visibleBlocks.forEach { block ->
+            RenderSingleBlock(
+                block = block,
+                fontScaleMultiplier = fontScaleMultiplier,
+                onFormulaCopied = onFormulaCopied
+            )
         }
     }
 }
 
 @Composable
-private fun RenderSingleBlock(block: ContentBlockUi, fontScaleMultiplier: Float) {
+private fun RenderSingleBlock(
+    block: ContentBlockUi,
+    fontScaleMultiplier: Float,
+    onFormulaCopied: (() -> Unit)?
+) {
     val colors = LocalImtihanColors.current
+    val clipboardManager = LocalClipboardManager.current
 
     when (block) {
         is ContentBlockUi.Heading -> {
-            Column(modifier = Modifier.padding(top = 4.dp)) {
+            Column(modifier = Modifier.padding(top = 6.dp)) {
                 if (!block.sectionCode.isNullOrBlank()) {
                     Text(
-                        text = "Section ${block.sectionCode}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = colors.accentBlue
+                        text = "SECTION ${block.sectionCode}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.cyanPulse
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                 }
                 Text(
-                    text = if (block.sectionCode != null) "${block.sectionCode} ${block.text}" else block.text,
+                    text = if (block.sectionCode != null) "${block.sectionCode}  ${block.text}" else block.text,
                     style = if (block.isSubheading) {
                         MaterialTheme.typography.titleMedium
                     } else {
@@ -80,6 +107,10 @@ private fun RenderSingleBlock(block: ContentBlockUi, fontScaleMultiplier: Float)
                     fontSize = ((if (block.isSubheading) 16 else 20) * fontScaleMultiplier).sp,
                     color = colors.textPrimary
                 )
+                HorizontalDivider(
+                    modifier = Modifier.padding(top = 8.dp),
+                    color = colors.cardBorder.copy(alpha = 0.35f)
+                )
             }
         }
 
@@ -87,18 +118,18 @@ private fun RenderSingleBlock(block: ContentBlockUi, fontScaleMultiplier: Float)
             Text(
                 text = block.text,
                 style = MaterialTheme.typography.bodyMedium,
-                fontSize = (14 * fontScaleMultiplier).sp,
-                lineHeight = (22 * fontScaleMultiplier).sp,
+                fontSize = (14.5f * fontScaleMultiplier).sp,
+                lineHeight = (23f * fontScaleMultiplier).sp,
                 color = colors.textSecondary
             )
         }
 
         is ContentBlockUi.HighlightedExamPoint -> {
-            val tintBg = if (colors.isDark) Color(0xFF28200D) else Color(0xFFFFFBEB)
-            val tintBorder = if (colors.isDark) Color(0xFF8A6318) else Color(0xFFFCD34D)
+            val tintBg = if (colors.isDark) Color(0xFF231A0A) else Color(0xFFFFFBEB)
+            val tintBorder = if (colors.isDark) Color(0xFF9E6F1A) else Color(0xFFFCD34D)
             val tintText = if (colors.isDark) Color(0xFFFEF3C7) else Color(0xFF78350F)
             Surface(
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
                 color = tintBg,
                 border = BorderStroke(1.dp, tintBorder),
                 modifier = Modifier.fillMaxWidth()
@@ -125,7 +156,8 @@ private fun RenderSingleBlock(block: ContentBlockUi, fontScaleMultiplier: Float)
                         Text(
                             text = "• $pt",
                             style = MaterialTheme.typography.bodySmall,
-                            fontSize = (13 * fontScaleMultiplier).sp,
+                            fontSize = (13.5f * fontScaleMultiplier).sp,
+                            lineHeight = (20f * fontScaleMultiplier).sp,
                             color = tintText,
                             modifier = Modifier.padding(vertical = 2.dp)
                         )
@@ -143,13 +175,13 @@ private fun RenderSingleBlock(block: ContentBlockUi, fontScaleMultiplier: Float)
                     Icon(
                         imageVector = Icons.Outlined.BookmarkBorder,
                         contentDescription = null,
-                        tint = colors.accentBlue,
+                        tint = colors.cyanPulse,
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
-                        text = "Definition · ${block.term}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = colors.accentBlue
+                        text = "DEFINITION · ${block.term.uppercase()}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.cyanPulse
                     )
                 }
                 Spacer(modifier = Modifier.height(6.dp))
@@ -157,32 +189,70 @@ private fun RenderSingleBlock(block: ContentBlockUi, fontScaleMultiplier: Float)
                     text = block.definition,
                     style = MaterialTheme.typography.bodyMedium,
                     fontSize = (14 * fontScaleMultiplier).sp,
+                    lineHeight = (21 * fontScaleMultiplier).sp,
                     color = colors.textPrimary
                 )
                 if (!block.formulaHint.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = block.formulaHint,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = ImtihanMonoFamily,
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 13.sp,
-                        color = colors.accentBlue
+                        fontSize = (13 * fontScaleMultiplier).sp,
+                        color = colors.cyanPulse
                     )
                 }
             }
         }
 
         is ContentBlockUi.MathExpression -> {
-            SilverBlueCard(elevated = true, modifier = Modifier.fillMaxWidth()) {
+            var copied by remember(block.id) { mutableStateOf(false) }
+            SilverBlueCard(
+                elevated = true,
+                onClick = {
+                    clipboardManager.setText(AnnotatedString(block.plainNotation))
+                    copied = true
+                    onFormulaCopied?.invoke()
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "FORMULA",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.cyanPulse
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (copied) Icons.Outlined.Check else Icons.Outlined.ContentCopy,
+                            contentDescription = "Copy formula",
+                            tint = if (copied) colors.success else colors.textMuted,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = if (copied) "COPIED" else "TAP TO COPY",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (copied) colors.success else colors.textMuted
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = block.plainNotation,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = ImtihanMonoFamily,
                     fontWeight = FontWeight.Bold,
                     fontSize = (15 * fontScaleMultiplier).sp,
                     color = colors.textPrimary
                 )
                 if (!block.caption.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = block.caption,
                         style = MaterialTheme.typography.bodySmall,
@@ -208,9 +278,9 @@ private fun RenderSingleBlock(block: ContentBlockUi, fontScaleMultiplier: Float)
                 ) {
                     block.headers.forEach { header ->
                         Text(
-                            text = header,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = colors.accentBlue,
+                            text = header.uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.cyanPulse,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -219,28 +289,32 @@ private fun RenderSingleBlock(block: ContentBlockUi, fontScaleMultiplier: Float)
                     modifier = Modifier.padding(vertical = 6.dp),
                     color = colors.cardBorder.copy(alpha = 0.6f)
                 )
-                block.rows.forEach { row ->
+                block.rows.forEachIndexed { rIdx, row ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 4.dp),
+                            .padding(vertical = 5.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         row.forEach { cell ->
                             Text(
                                 text = cell,
                                 style = MaterialTheme.typography.bodySmall,
+                                fontSize = (12.5f * fontScaleMultiplier).sp,
                                 color = colors.textPrimary,
                                 modifier = Modifier.weight(1f)
                             )
                         }
+                    }
+                    if (rIdx < block.rows.lastIndex) {
+                        HorizontalDivider(color = colors.cardBorder.copy(alpha = 0.2f))
                     }
                 }
             }
         }
 
         is ContentBlockUi.BulletOrNumberedList -> {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 if (!block.title.isNullOrBlank()) {
                     Text(
                         text = block.title,
@@ -254,6 +328,7 @@ private fun RenderSingleBlock(block: ContentBlockUi, fontScaleMultiplier: Float)
                         text = "$prefix $item",
                         style = MaterialTheme.typography.bodyMedium,
                         fontSize = (14 * fontScaleMultiplier).sp,
+                        lineHeight = (21 * fontScaleMultiplier).sp,
                         color = colors.textSecondary
                     )
                 }
@@ -263,9 +338,9 @@ private fun RenderSingleBlock(block: ContentBlockUi, fontScaleMultiplier: Float)
         is ContentBlockUi.WorkedExample -> {
             SilverBlueCard(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = block.title,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = colors.accentBlue
+                    text = block.title.uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.cyanPulse
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
@@ -278,14 +353,17 @@ private fun RenderSingleBlock(block: ContentBlockUi, fontScaleMultiplier: Float)
                     Text(
                         text = "${i + 1}. $step",
                         style = MaterialTheme.typography.bodySmall,
+                        fontSize = (13 * fontScaleMultiplier).sp,
                         color = colors.textSecondary,
                         modifier = Modifier.padding(vertical = 2.dp)
                     )
                 }
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Result: ${block.finalAnswer}",
-                    style = MaterialTheme.typography.labelMedium,
+                    fontFamily = ImtihanMonoFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = (13 * fontScaleMultiplier).sp,
                     color = colors.success
                 )
             }
@@ -310,12 +388,12 @@ private fun RenderSingleBlock(block: ContentBlockUi, fontScaleMultiplier: Float)
                         Icon(
                             imageVector = Icons.Outlined.Image,
                             contentDescription = block.altText,
-                            tint = colors.accentBlue,
+                            tint = colors.cyanPulse,
                             modifier = Modifier.size(28.dp)
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Offline-ready Diagram (${block.assetKey})",
+                            text = "Vector Schematic (${block.assetKey})",
                             style = MaterialTheme.typography.labelSmall,
                             color = colors.textSecondary
                         )
@@ -334,9 +412,9 @@ private fun RenderSingleBlock(block: ContentBlockUi, fontScaleMultiplier: Float)
             var chosenId by remember(block.id) { mutableStateOf<String?>(null) }
             SilverBlueCard(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "Quick Check MCQ",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = colors.accentBlue
+                    text = "QUICK CHECK MCQ",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.cyanPulse
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
@@ -393,9 +471,9 @@ private fun RenderSingleBlock(block: ContentBlockUi, fontScaleMultiplier: Float)
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "${block.questionType.uppercase()} · ${block.marks} Marks",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = colors.accentBlue
+                        text = "${block.questionType.uppercase()} · ${block.marks} MARKS",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.cyanPulse
                     )
                     if (!block.yearReference.isNullOrBlank()) {
                         Text(
@@ -409,6 +487,7 @@ private fun RenderSingleBlock(block: ContentBlockUi, fontScaleMultiplier: Float)
                 Text(
                     text = block.question,
                     style = MaterialTheme.typography.titleSmall,
+                    fontSize = (14.5f * fontScaleMultiplier).sp,
                     color = colors.textPrimary
                 )
                 if (expanded) {
@@ -417,6 +496,7 @@ private fun RenderSingleBlock(block: ContentBlockUi, fontScaleMultiplier: Float)
                         Text(
                             text = "${idx + 1}. $step",
                             style = MaterialTheme.typography.bodySmall,
+                            fontSize = (13 * fontScaleMultiplier).sp,
                             color = colors.textSecondary,
                             modifier = Modifier.padding(vertical = 2.dp)
                         )

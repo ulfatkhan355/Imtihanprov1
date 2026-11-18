@@ -31,8 +31,19 @@ test('Class 9 KPK starter catalog, study group filtering, search, and runtime co
 
   const bioSubjects = await jsonReq(env, '/v1/subjects?board=KPK&classLevel=9&studyGroup=SCIENCE_BIOLOGY');
   assert.equal(bioSubjects.status, 200);
+  const phy9 = bioSubjects.body.data.find((s: any) => s.code === 'PHY-09');
+  assert.ok(phy9);
+  assert.ok(phy9.pairingSchemeSummary);
   assert.ok(bioSubjects.body.data.some((s: any) => s.code === 'BIO-09'));
   assert.ok(!bioSubjects.body.data.some((s: any) => s.code === 'CS-09'));
+
+  const phyChapters = await jsonReq(env, '/v1/subjects/sub_kpk9_phy/chapters');
+  assert.equal(phyChapters.status, 200);
+  const ch1 = phyChapters.body.data.find((c: any) => c.id === 'ch_phy9_01');
+  assert.ok(ch1);
+  assert.ok(ch1.titleUrdu);
+  assert.ok(typeof ch1.boardWeightageMarks === 'number' && ch1.boardWeightageMarks > 0);
+  assert.ok(ch1.nightBeforeSummary);
 
   const csSubjects = await jsonReq(env, '/v1/subjects?board=KPK&classLevel=9&studyGroup=SCIENCE_CS');
   assert.equal(csSubjects.status, 200);

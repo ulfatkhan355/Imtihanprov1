@@ -53,7 +53,9 @@ data class SubjectUiModel(
     val hasSeedContent: Boolean,
     val studyGroups: List<String> = emptyList(),
     val description: String = "",
-    val textbookPdfId: String? = null
+    val textbookPdfId: String? = null,
+    val pairingSchemeSummary: String? = null,
+    val offlinePackSizeMb: Double = 0.6
 )
 
 data class ChapterUiModel(
@@ -70,7 +72,12 @@ data class ChapterUiModel(
     val isDownloadedOffline: Boolean,
     val topics: List<TopicUiModel> = emptyList(),
     val difficultyTag: String? = null,
-    val sourceReference: String? = null
+    val sourceReference: String? = null,
+    val titleUrdu: String? = null,
+    val subtitleUrdu: String? = null,
+    val boardWeightageMarks: Int = 0,
+    val pairingHint: String? = null,
+    val nightBeforeSummary: String? = null
 )
 
 sealed interface ContentBlockUi {
@@ -117,7 +124,10 @@ data class McqQuestionUi(
     val subjectId: String = "",
     val difficulty: String = "medium",
     val topicTitle: String = "Core Concepts",
-    val pastPaperYear: Int? = null
+    val pastPaperYear: Int? = null,
+    val questionUrdu: String? = null,
+    val optionsUrdu: List<String> = emptyList(),
+    val explanationUrdu: String? = null
 )
 
 data class TopicScoreBreakdownUi(
@@ -315,7 +325,9 @@ data class FlashcardUi(
     val intervalDays: Int,
     val easeFactor: Double,
     val repetitions: Int,
-    val isDue: Boolean
+    val isDue: Boolean,
+    val frontUrdu: String? = null,
+    val backUrdu: String? = null
 )
 
 data class HonestReadinessUi(

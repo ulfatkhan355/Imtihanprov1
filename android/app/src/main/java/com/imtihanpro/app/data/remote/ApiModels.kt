@@ -45,7 +45,9 @@ data class ApiSubjectDto(
     val coverageStatus: String,
     val studyGroups: List<String> = emptyList(),
     val description: String = "",
-    val textbookPdfId: String? = null
+    val textbookPdfId: String? = null,
+    val pairingSchemeSummary: String? = null,
+    val offlinePackSizeMb: Double = 0.6
 )
 
 data class ApiChapterDto(
@@ -62,7 +64,12 @@ data class ApiChapterDto(
     val estimatedSizeKb: Int,
     val topics: List<ApiTopicDto> = emptyList(),
     val difficultyTag: String? = null,
-    val sourceReference: String? = null
+    val sourceReference: String? = null,
+    val titleUrdu: String? = null,
+    val subtitleUrdu: String? = null,
+    val boardWeightageMarks: Int = 0,
+    val pairingHint: String? = null,
+    val nightBeforeSummary: String? = null
 )
 
 sealed interface ApiContentBlockDto {
@@ -210,7 +217,10 @@ data class ApiMcqQuestionDto(
     val explanation: String,
     val difficulty: String = "medium",
     val topicTitle: String = "Core Concepts",
-    val pastPaperYear: Int? = null
+    val pastPaperYear: Int? = null,
+    val questionUrdu: String? = null,
+    val optionsUrdu: List<String> = emptyList(),
+    val explanationUrdu: String? = null
 )
 
 data class ApiAuthSessionDto(
@@ -378,7 +388,9 @@ data class ApiFlashcardDto(
     val easeFactor: Double,
     val repetitions: Int,
     val nextReviewAtIso: String,
-    val lastReviewedAtIso: String?
+    val lastReviewedAtIso: String?,
+    val frontUrdu: String? = null,
+    val backUrdu: String? = null
 )
 
 data class ApiTutorGroundedSourceDto(

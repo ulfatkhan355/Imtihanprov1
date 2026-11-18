@@ -44,7 +44,9 @@ object CurriculumMappers {
             hasSeedContent = dto.coverageStatus == "active_seed",
             studyGroups = dto.studyGroups,
             description = dto.description,
-            textbookPdfId = dto.textbookPdfId
+            textbookPdfId = dto.textbookPdfId,
+            pairingSchemeSummary = dto.pairingSchemeSummary,
+            offlinePackSizeMb = dto.offlinePackSizeMb
         )
     }
 
@@ -76,7 +78,12 @@ object CurriculumMappers {
                 TopicUiModel(it.id, it.chapterId, it.orderIndex, it.title, it.estimatedMinutes)
             },
             difficultyTag = dto.difficultyTag,
-            sourceReference = dto.sourceReference
+            sourceReference = dto.sourceReference,
+            titleUrdu = dto.titleUrdu,
+            subtitleUrdu = dto.subtitleUrdu,
+            boardWeightageMarks = dto.boardWeightageMarks,
+            pairingHint = dto.pairingHint,
+            nightBeforeSummary = dto.nightBeforeSummary
         )
     }
 
@@ -139,7 +146,10 @@ object CurriculumMappers {
             subjectId = dto.subjectId,
             difficulty = dto.difficulty,
             topicTitle = dto.topicTitle,
-            pastPaperYear = dto.pastPaperYear
+            pastPaperYear = dto.pastPaperYear,
+            questionUrdu = dto.questionUrdu,
+            optionsUrdu = dto.optionsUrdu,
+            explanationUrdu = dto.explanationUrdu
         )
     }
 

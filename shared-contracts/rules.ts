@@ -696,3 +696,44 @@ export function shouldDisplayAd(
   return false;
 }
 
+export function computeDaysUntilExam(
+  examDateIso: string | null | undefined,
+  todayIso: string = new Date().toISOString()
+): number | null {
+  if (!examDateIso) return null;
+  const targetDay = examDateIso.trim().slice(0, 10);
+  const currentDay = todayIso.trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDay) || !/^\d{4}-\d{2}-\d{2}$/.test(currentDay)) {
+    return null;
+  }
+  const targetMs = Date.parse(`${targetDay}T00:00:00Z`);
+  const currentMs = Date.parse(`${currentDay}T00:00:00Z`);
+  if (!Number.isFinite(targetMs) || !Number.isFinite(currentMs)) return null;
+  return Math.max(0, Math.round((targetMs - currentMs) / 86_400_000));
+}
+
+export function computeFocusSessionXp(durationMinutes: number, completed: boolean): number {
+  const safeMins = Math.max(1, Math.min(180, Math.round(durationMinutes)));
+  if (!completed) return Math.min(10, Math.floor(safeMins / 5));
+  if (safeMins >= 50) return 40;
+  if (safeMins >= 25) return 20;
+  if (safeMins >= 15) return 12;
+  return Math.max(5, Math.floor(safeMins / 2));
+}
+
+export function calculateBiseWeightageSummary(chapters: ApiChapter[]): {
+  totalMarksMapped: number;
+  chaptersWithWeightage: number;
+} {
+  let totalMarksMapped = 0;
+  let chaptersWithWeightage = 0;
+  for (const ch of chapters) {
+    if (typeof ch.boardWeightageMarks === 'number' && ch.boardWeightageMarks > 0) {
+      totalMarksMapped += ch.boardWeightageMarks;
+      chaptersWithWeightage += 1;
+    }
+  }
+  return { totalMarksMapped, chaptersWithWeightage };
+}
+
+

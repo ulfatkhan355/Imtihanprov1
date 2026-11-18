@@ -47,6 +47,10 @@ export function AcademicManagementPages({
   const [chSubtitle, setChSubtitle] = useState('');
   const [chDifficulty, setChDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [chSourceRef, setChSourceRef] = useState('KPK Textbook Board Peshawar');
+  const [chTitleUrdu, setChTitleUrdu] = useState('');
+  const [chBoardWeightage, setChBoardWeightage] = useState(8);
+  const [chPairingHint, setChPairingHint] = useState('');
+  const [chNightBefore, setChNightBefore] = useState('');
   const [chError, setChError] = useState('');
 
   const filteredSubjects = useMemo(() => {
@@ -134,9 +138,16 @@ export function AcademicManagementPages({
         curriculumVersion: 'KPK-2026',
         difficultyTag: chDifficulty,
         sourceReference: chSourceRef.trim() || 'KPK Textbook Board Peshawar',
+        titleUrdu: chTitleUrdu.trim() || undefined,
+        boardWeightageMarks: chBoardWeightage > 0 ? chBoardWeightage : undefined,
+        pairingHint: chPairingHint.trim() || undefined,
+        nightBeforeSummary: chNightBefore.trim() || undefined,
       });
       setChTitle('');
       setChSubtitle('');
+      setChTitleUrdu('');
+      setChPairingHint('');
+      setChNightBefore('');
       setShowChapterModal(false);
     } catch (err) {
       setChError(err instanceof Error ? err.message : 'Failed to create chapter.');
@@ -403,9 +414,15 @@ export function AcademicManagementPages({
                       <td className="px-5 py-3.5">
                         <div className="font-medium text-[#0F172A] dark:text-white">
                           {ch.chapterNumber}. {ch.title}
+                          {ch.boardWeightageMarks ? (
+                            <span className="ml-2 font-mono text-[11px] text-[#1D4ED8] dark:text-[#60A5FA]">
+                              · {ch.boardWeightageMarks} Marks BISE
+                            </span>
+                          ) : null}
                         </div>
                         <div className="text-xs text-[#64748B] dark:text-[#8FA7D1]">
                           {ch.subtitle}
+                          {ch.titleUrdu ? <span className="ml-2">· {ch.titleUrdu}</span> : null}
                         </div>
                       </td>
                       <td className="px-5 py-3.5 text-xs text-[#475569] dark:text-[#94A8CE]">
@@ -697,6 +714,62 @@ export function AcademicManagementPages({
                   className="mt-1 w-full h-10 px-3 rounded-lg border border-[#CBD8EE] bg-white text-sm text-[#0F172A] dark:border-[#24407A] dark:bg-[#091530] dark:text-white"
                 />
               </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-2">
+                <label htmlFor="ch-urdu" className="block text-xs font-medium text-[#334155] dark:text-[#B5C6E6]">
+                  Urdu Title (Optional)
+                </label>
+                <input
+                  id="ch-urdu"
+                  type="text"
+                  dir="rtl"
+                  value={chTitleUrdu}
+                  onChange={(e) => setChTitleUrdu(e.target.value)}
+                  placeholder="اردو عنوان (اختیاری)"
+                  className="mt-1 w-full h-10 px-3 rounded-lg border border-[#CBD8EE] bg-white text-sm text-[#0F172A] dark:border-[#24407A] dark:bg-[#091530] dark:text-white"
+                />
+              </div>
+              <div>
+                <label htmlFor="ch-marks" className="block text-xs font-medium text-[#334155] dark:text-[#B5C6E6]">
+                  BISE Marks
+                </label>
+                <input
+                  id="ch-marks"
+                  type="number"
+                  min={0}
+                  max={30}
+                  value={chBoardWeightage}
+                  onChange={(e) => setChBoardWeightage(Number(e.target.value))}
+                  className="mt-1 w-full h-10 px-3 rounded-lg border border-[#CBD8EE] bg-white text-sm text-[#0F172A] dark:border-[#24407A] dark:bg-[#091530] dark:text-white"
+                />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="ch-pairing" className="block text-xs font-medium text-[#334155] dark:text-[#B5C6E6]">
+                Pairing Scheme Hint (Optional)
+              </label>
+              <input
+                id="ch-pairing"
+                type="text"
+                value={chPairingHint}
+                onChange={(e) => setChPairingHint(e.target.value)}
+                placeholder="e.g., 2 MCQs + 1 Short + Paired Long Numerical"
+                className="mt-1 w-full h-10 px-3 rounded-lg border border-[#CBD8EE] bg-white text-sm text-[#0F172A] dark:border-[#24407A] dark:bg-[#091530] dark:text-white"
+              />
+            </div>
+            <div>
+              <label htmlFor="ch-night" className="block text-xs font-medium text-[#334155] dark:text-[#B5C6E6]">
+                Night-Before Exam Summary (Optional)
+              </label>
+              <textarea
+                id="ch-night"
+                rows={2}
+                value={chNightBefore}
+                onChange={(e) => setChNightBefore(e.target.value)}
+                placeholder="60-second revision bullets for the night before BISE exam..."
+                className="mt-1 w-full p-2.5 rounded-lg border border-[#CBD8EE] bg-white text-xs text-[#0F172A] dark:border-[#24407A] dark:bg-[#091530] dark:text-white"
+              />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button

@@ -3,8 +3,11 @@ import assert from 'node:assert/strict';
 import {
   KPK_SUB_BOARDS,
   anonymizeLeaderboardHandle,
+  calculateBiseWeightageSummary,
   calculateSm2NextReview,
   canTransitionPublishStatus,
+  computeDaysUntilExam,
+  computeFocusSessionXp,
   computeHonestExamReadiness,
   computeStudyStreak,
   detectWeakChapters,
@@ -260,4 +263,57 @@ test('canTransitionPublishStatus supports 4-stage draft -> in_review -> approved
   assert.equal(canTransitionPublishStatus('in_review', 'approved'), true);
   assert.equal(canTransitionPublishStatus('approved', 'published'), true);
   assert.equal(canTransitionPublishStatus('draft', 'published'), false);
+});
+
+test('2050 Flagship helpers compute exam countdown, Pomodoro XP, and BISE weightage totals', () => {
+  assert.equal(computeDaysUntilExam('2026-05-20', '2026-05-01T12:00:00Z'), 19);
+  assert.equal(computeDaysUntilExam('2026-04-20', '2026-05-01'), 0);
+  assert.equal(computeDaysUntilExam(null, '2026-05-01'), null);
+  assert.equal(computeDaysUntilExam('invalid-date', '2026-05-01'), null);
+
+  assert.equal(computeFocusSessionXp(50, true), 40);
+  assert.equal(computeFocusSessionXp(25, true), 20);
+  assert.equal(computeFocusSessionXp(15, true), 12);
+  assert.equal(computeFocusSessionXp(20, false), 4);
+
+  const summary = calculateBiseWeightageSummary([
+    {
+      id: 'ch1',
+      subjectId: 's1',
+      chapterNumber: 1,
+      title: 'Measurements',
+      subtitle: 'Units',
+      boardWeightageMarks: 10,
+      topics: [],
+      currentVersion: 'v1.0.0',
+      publishStatus: 'published',
+      hasDetailedNotes: true,
+      hasRevisionNotes: true,
+      mcqCount: 5,
+      solvedQuestionsCount: 2,
+      isLockedByDefault: false,
+      estimatedSizeKb: 40,
+      updatedAtIso: '2026-04-01T00:00:00Z',
+    },
+    {
+      id: 'ch2',
+      subjectId: 's1',
+      chapterNumber: 2,
+      title: 'Kinematics',
+      subtitle: 'Motion',
+      boardWeightageMarks: 12,
+      topics: [],
+      currentVersion: 'v1.0.0',
+      publishStatus: 'published',
+      hasDetailedNotes: true,
+      hasRevisionNotes: true,
+      mcqCount: 5,
+      solvedQuestionsCount: 2,
+      isLockedByDefault: false,
+      estimatedSizeKb: 40,
+      updatedAtIso: '2026-04-01T00:00:00Z',
+    },
+  ]);
+  assert.equal(summary.totalMarksMapped, 22);
+  assert.equal(summary.chaptersWithWeightage, 2);
 });

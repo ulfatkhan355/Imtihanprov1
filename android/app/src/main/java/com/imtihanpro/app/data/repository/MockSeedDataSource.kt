@@ -31,7 +31,9 @@ object MockSeedDataSource {
             coverageStatus = "active_seed",
             studyGroups = listOf("SCIENCE_BIOLOGY", "SCIENCE_CS"),
             description = "KPK Textbook Board Class 9 Physics (Mechanics, Matter & Thermal Physics)",
-            textbookPdfId = "pdf_tb_phy9"
+            textbookPdfId = "pdf_tb_phy9",
+            pairingSchemeSummary = "BISE KPK: 12 MCQs (12m) + Sec-B Short 8/11 (32m) + Sec-C Long 3/4 (21m) = 65 Marks",
+            offlinePackSizeMb = 0.8
         ),
         ApiSubjectDto(
             id = "sub_kpk9_chem",
@@ -45,7 +47,9 @@ object MockSeedDataSource {
             coverageStatus = "active_seed",
             studyGroups = listOf("SCIENCE_BIOLOGY", "SCIENCE_CS"),
             description = "Fundamentals of Chemistry, Atomic Structure & Bonding (Class 9 KPK)",
-            textbookPdfId = "pdf_tb_chem9"
+            textbookPdfId = "pdf_tb_chem9",
+            pairingSchemeSummary = "BISE KPK: 12 MCQs + 8 Short Qs + 3 Long Pairs = 65 Marks Theory",
+            offlinePackSizeMb = 0.7
         ),
         ApiSubjectDto(
             id = "sub_kpk9_math",
@@ -59,7 +63,9 @@ object MockSeedDataSource {
             coverageStatus = "active_seed",
             studyGroups = listOf("SCIENCE_BIOLOGY", "SCIENCE_CS", "ARTS_HUMANITIES"),
             description = "Matrices, Logarithms, Algebra & Geometry for KPK Class 9",
-            textbookPdfId = "pdf_tb_math9"
+            textbookPdfId = "pdf_tb_math9",
+            pairingSchemeSummary = "BISE KPK: 15 MCQs (15m) + Sec-B 9/12 Short (36m) + Sec-C Theorems & Long (24m) = 75 Marks",
+            offlinePackSizeMb = 0.9
         ),
         ApiSubjectDto(
             id = "sub_kpk9_bio",
@@ -72,7 +78,9 @@ object MockSeedDataSource {
             publishedChapters = 1,
             coverageStatus = "active_seed",
             studyGroups = listOf("SCIENCE_BIOLOGY"),
-            description = "Introduction to Biology, Cells, Enzymes & Bioenergetics"
+            description = "Introduction to Biology, Cells, Enzymes & Bioenergetics",
+            pairingSchemeSummary = "BISE KPK: 12 MCQs + Sec-B Short 8/11 + Sec-C 3/4 Long = 65 Marks",
+            offlinePackSizeMb = 0.7
         ),
         ApiSubjectDto(
             id = "sub_kpk9_cs",
@@ -85,7 +93,9 @@ object MockSeedDataSource {
             publishedChapters = 1,
             coverageStatus = "active_seed",
             studyGroups = listOf("SCIENCE_CS"),
-            description = "Problem Solving, Number Systems, HTML & Networks (KPK Class 9)"
+            description = "Problem Solving, Number Systems, HTML & Networks (KPK Class 9)",
+            pairingSchemeSummary = "BISE KPK: 10 MCQs + Sec-B Short (24m) + Sec-C Long (16m) = 50 Marks",
+            offlinePackSizeMb = 0.6
         ),
         ApiSubjectDto(
             id = "sub_kpk9_eng",
@@ -134,7 +144,12 @@ object MockSeedDataSource {
                 ApiTopicDto("top_phy9_01_3", "ch_phy9_01", 3, "Measuring Instruments & Significant Figures", 20)
             ),
             difficultyTag = "medium",
-            sourceReference = "KPK Textbook Board Peshawar — Physics 9 Ch 1"
+            sourceReference = "KPK Textbook Board Peshawar — Physics 9 Ch 1",
+            titleUrdu = "طبیعی مقداریں اور پیمائش",
+            subtitleUrdu = "بنیادی و ماخوذ اکائیاں، سائنسی ترقیم، ورنیئر کیلیپرز اور سکرو گیج",
+            boardWeightageMarks = 10,
+            pairingHint = "2 MCQs + 1 Short Q + Numerical Ch-2 Pair",
+            nightBeforeSummary = "7 SI Base Units (m, kg, s, A, K, mol, cd); Vernier LC = 0.01 cm; Screw Gauge LC = 0.01 mm; Leading zeros are never significant."
         ),
         ApiChapterDto(
             id = "ch_phy9_02",
@@ -153,7 +168,12 @@ object MockSeedDataSource {
                 ApiTopicDto("top_phy9_02_2", "ch_phy9_02", 2, "Equations of Motion", 25)
             ),
             difficultyTag = "medium",
-            sourceReference = "KPK Textbook Board Peshawar — Physics 9 Ch 2"
+            sourceReference = "KPK Textbook Board Peshawar — Physics 9 Ch 2",
+            titleUrdu = "حرکیات (کائنی میٹکس)",
+            subtitleUrdu = "اسکیلر اور ویکٹر مقداریں، رفتار، اسراع اور حرکت کی مساواتیں",
+            boardWeightageMarks = 12,
+            pairingHint = "2 MCQs + 2 Short Qs + 1 Long (Equations Derivation)",
+            nightBeforeSummary = "3 Equations of Motion: vf=vi+at, S=vit+½at², 2aS=vf²-vi². Slope of d-t graph = speed; area under v-t graph = distance."
         ),
         ApiChapterDto(
             id = "ch_chem9_01",
@@ -171,7 +191,12 @@ object MockSeedDataSource {
                 ApiTopicDto("top_chem9_01_1", "ch_chem9_01", 1, "Elements, Compounds & Mixtures", 15),
                 ApiTopicDto("top_chem9_01_2", "ch_chem9_01", 2, "Mole & Avogadro Calculations", 20)
             ),
-            difficultyTag = "medium"
+            difficultyTag = "medium",
+            titleUrdu = "کیمیاء کے بنیادی اصول",
+            subtitleUrdu = "کیمیاء کی شاخیں، ایٹمی نمبر، مول اور ایوگیڈرو نمبر",
+            boardWeightageMarks = 9,
+            pairingHint = "2 MCQs + 1 Short Q + Mole Numerical",
+            nightBeforeSummary = "Mole = Mass / Molar Mass; NA = 6.02×10²³ particles/mol; Compound has fixed ratio by mass, mixture has variable ratio."
         ),
         ApiChapterDto(
             id = "ch_math9_01",
@@ -189,7 +214,12 @@ object MockSeedDataSource {
                 ApiTopicDto("top_math9_01_1", "ch_math9_01", 1, "Types & Operations on Matrices", 20),
                 ApiTopicDto("top_math9_01_2", "ch_math9_01", 2, "Determinants & Inverse", 25)
             ),
-            difficultyTag = "medium"
+            difficultyTag = "medium",
+            titleUrdu = "قالب اور مقطعات",
+            subtitleUrdu = "قالب کا مرتبہ، ضرب، مقطع اور کریمر کا اصول",
+            boardWeightageMarks = 10,
+            pairingHint = "2 MCQs + 1 Short Q + 1 Long (Cramer / Matrix Inversion)",
+            nightBeforeSummary = "AB ≠ BA in general; Singular if |A|=0; Inverse A⁻¹ = Adj(A)/|A|; Cramer's Rule guaranteed in Section B/C."
         ),
         ApiChapterDto(
             id = "ch_bio9_01",
@@ -203,7 +233,12 @@ object MockSeedDataSource {
             solvedQuestionsCount = 1,
             isLockedByDefault = false,
             estimatedSizeKb = 300,
-            difficultyTag = "easy"
+            difficultyTag = "easy",
+            titleUrdu = "حیاتیات کا تعارف",
+            subtitleUrdu = "حیاتیات کے شعبے، مسلم سائنسدان اور خلوی تنظیم",
+            boardWeightageMarks = 8,
+            pairingHint = "1 MCQ + 2 Short Qs + Organ Levels",
+            nightBeforeSummary = "Divisions: Botany, Zoology, Microbiology; Jabir Bin Hayan (Al-Nabatat), Bu Ali Sina (Al-Qanun fi al-Tib)."
         ),
         ApiChapterDto(
             id = "ch_cs9_01",
@@ -217,7 +252,12 @@ object MockSeedDataSource {
             solvedQuestionsCount = 1,
             isLockedByDefault = false,
             estimatedSizeKb = 290,
-            difficultyTag = "easy"
+            difficultyTag = "easy",
+            titleUrdu = "کمپیوٹر کے بنیادی اصول",
+            subtitleUrdu = "کمپیوٹر کی نسلیں، ہارڈویئر اور سافٹ ویئر",
+            boardWeightageMarks = 9,
+            pairingHint = "2 MCQs + 1 Short Q + CPU Architecture",
+            nightBeforeSummary = "5 Generations: Vacuum Tubes → Transistors → ICs → Microprocessors → AI. CPU = ALU + CU."
         ),
 
         // Class 10 KPK preserved chapters
@@ -232,7 +272,12 @@ object MockSeedDataSource {
             mcqCount = 5,
             solvedQuestionsCount = 3,
             isLockedByDefault = false,
-            estimatedSizeKb = 420
+            estimatedSizeKb = 420,
+            titleUrdu = "سادہ ہارمونک حرکت اور امواج",
+            subtitleUrdu = "ارتعاشی حرکت، سادہ پینڈولم کا دورانیہ اور بحالی قوت",
+            boardWeightageMarks = 11,
+            pairingHint = "2 MCQs + 1 Short Q + Pendulum Numerical",
+            nightBeforeSummary = "F = -kx; T = 2π√(l/g) independent of bob mass; Velocity max at mean position, PE max at extreme."
         ),
         ApiChapterDto(
             id = "ch_phy10_02",
@@ -245,7 +290,12 @@ object MockSeedDataSource {
             mcqCount = 5,
             solvedQuestionsCount = 2,
             isLockedByDefault = false,
-            estimatedSizeKb = 380
+            estimatedSizeKb = 380,
+            titleUrdu = "حرکت اور امواج",
+            subtitleUrdu = "موج کی مساوات، تعدد، طولِ موج اور رپل ٹینک",
+            boardWeightageMarks = 10,
+            pairingHint = "1 MCQ + 2 Short Qs + Wave Numerical",
+            nightBeforeSummary = "v = fλ; f = 1/T; Diffraction bends waves around obstacles matching wavelength size."
         ),
         ApiChapterDto(
             id = "ch_phy10_03",
@@ -498,7 +548,10 @@ object MockSeedDataSource {
             explanation = "Velocity is derived by dividing displacement (length) by time.",
             difficulty = "easy",
             topicTitle = "Base & Derived Units",
-            pastPaperYear = 2023
+            pastPaperYear = 2023,
+            questionUrdu = "درج ذیل میں سے کون سی ماخوذ طبیعی مقدار ہے؟",
+            optionsUrdu = listOf("لمبائی", "وقت", "ولوسٹی (رفتار)", "درجہ حرارت"),
+            explanationUrdu = "ولوسٹی (رفتار) ہٹاؤ کو وقت پر تقسیم کرنے سے حاصل ہوتی ہے۔"
         ),
         ApiMcqQuestionDto(
             id = "mcq_phy9_2",
@@ -510,7 +563,10 @@ object MockSeedDataSource {
             explanation = "Vernier Callipers measures accurately up to 0.01 cm (0.1 mm).",
             difficulty = "easy",
             topicTitle = "Measuring Instruments & Significant Figures",
-            pastPaperYear = 2022
+            pastPaperYear = 2022,
+            questionUrdu = "معیاری ورنیئر کیلیپرز کا لیسٹ کاؤنٹ کیا ہے؟",
+            optionsUrdu = listOf("0.1 سینٹی میٹر", "0.01 سینٹی میٹر", "0.001 سینٹی میٹر", "1.0 ملی میٹر"),
+            explanationUrdu = "ورنیئر کیلیپرز کم از کم 0.01 سینٹی میٹر (0.1 ملی میٹر) تک درست پیمائش کرتا ہے۔"
         ),
         ApiMcqQuestionDto(
             id = "mcq_phy9_3",
@@ -521,7 +577,10 @@ object MockSeedDataSource {
             correctOptionId = "B",
             explanation = "Mega (M) represents 10⁶ = 1,000,000.",
             difficulty = "easy",
-            topicTitle = "Prefixes & Scientific Notation"
+            topicTitle = "Prefixes & Scientific Notation",
+            questionUrdu = "ایک میگا (M) پریفکس برابر ہوتا ہے:",
+            optionsUrdu = listOf("10³", "10⁶", "10⁹", "10⁻⁶"),
+            explanationUrdu = "میگا (M) دس لاکھ یعنی 10⁶ کے برابر ہے۔"
         ),
         ApiMcqQuestionDto(
             id = "mcq_phy9_4",
@@ -639,7 +698,9 @@ object MockSeedDataSource {
             easeFactor = 2.5,
             repetitions = 0,
             nextReviewAtIso = "",
-            lastReviewedAtIso = null
+            lastReviewedAtIso = null,
+            frontUrdu = "ورنیئر کیلیپرز کا لیسٹ کاؤنٹ کیا ہے؟",
+            backUrdu = "0.1 ملی میٹر یا 0.01 سینٹی میٹر۔"
         ),
         ApiFlashcardDto(
             id = "fc_phy9_02",
@@ -653,7 +714,9 @@ object MockSeedDataSource {
             easeFactor = 2.5,
             repetitions = 0,
             nextReviewAtIso = "",
-            lastReviewedAtIso = null
+            lastReviewedAtIso = null,
+            frontUrdu = "سات بنیادی SI اکائیاں کون سی ہیں؟",
+            backUrdu = "میٹر، کلوگرام، سیکنڈ، ایمپیئر، کیلون، مول، کینڈیلا۔"
         ),
         ApiFlashcardDto(
             id = "fc_phy9_03",
@@ -667,7 +730,9 @@ object MockSeedDataSource {
             easeFactor = 2.5,
             repetitions = 0,
             nextReviewAtIso = "",
-            lastReviewedAtIso = null
+            lastReviewedAtIso = null,
+            frontUrdu = "حرکت کی پہلی مساوات بیان کریں۔",
+            backUrdu = "vf = vi + at (آخری رفتار، ابتدائی رفتار، اسراع اور وقت کا تعلق)۔"
         ),
         ApiFlashcardDto(
             id = "fc_chem9_01",
@@ -681,7 +746,9 @@ object MockSeedDataSource {
             easeFactor = 2.5,
             repetitions = 0,
             nextReviewAtIso = "",
-            lastReviewedAtIso = null
+            lastReviewedAtIso = null,
+            frontUrdu = "ایوگیڈرو نمبر (NA) کیا ہے؟",
+            backUrdu = "کسی بھی شے کے ایک مول میں موجود 6.02×10²³ ذرات کی تعداد۔"
         )
     )
 

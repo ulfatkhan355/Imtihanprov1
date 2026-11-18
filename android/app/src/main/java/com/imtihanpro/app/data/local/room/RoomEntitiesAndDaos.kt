@@ -26,7 +26,9 @@ data class CachedSubjectEntity(
     val publishedChapters: Int,
     val coverageStatus: String,
     val updatedAtEpochMs: Long,
-    val studyGroupsCsv: String = ""
+    val studyGroupsCsv: String = "",
+    val pairingSchemeSummary: String? = null,
+    val offlinePackSizeMb: Double = 0.6
 )
 
 @Entity(tableName = "cached_chapter_meta")
@@ -42,7 +44,12 @@ data class CachedChapterMetaEntity(
     val solvedQuestionsCount: Int,
     val isLockedByDefault: Boolean,
     val estimatedSizeKb: Int,
-    val topicsJson: String = "[]"
+    val topicsJson: String = "[]",
+    val titleUrdu: String? = null,
+    val subtitleUrdu: String? = null,
+    val boardWeightageMarks: Int = 0,
+    val pairingHint: String? = null,
+    val nightBeforeSummary: String? = null
 )
 
 @Entity(tableName = "cached_chapters")
@@ -67,7 +74,10 @@ data class CachedMcqEntity(
     val correctOptionId: String,
     val explanation: String,
     val difficulty: String = "medium",
-    val topicTitle: String = "Core Concepts"
+    val topicTitle: String = "Core Concepts",
+    val questionUrdu: String? = null,
+    val optionsUrduJson: String = "[]",
+    val explanationUrdu: String? = null
 )
 
 @Entity(tableName = "cached_past_papers")
@@ -203,7 +213,9 @@ data class FlashcardReviewEntity(
     val easeFactor: Double,
     val repetitions: Int,
     val nextReviewEpochMs: Long,
-    val lastReviewedEpochMs: Long?
+    val lastReviewedEpochMs: Long?,
+    val frontUrdu: String? = null,
+    val backUrdu: String? = null
 )
 
 @Entity(tableName = "study_plan_tasks")
@@ -499,7 +511,7 @@ interface FeedbackDao {
         StudyActivityDayEntity::class,
         PendingFeedbackEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class ImtihanDatabase : RoomDatabase() {
@@ -646,6 +658,23 @@ object ImtihanDatabaseProvider {
         }
     }
 
+    val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE cached_subjects ADD COLUMN pairingSchemeSummary TEXT")
+            db.execSQL("ALTER TABLE cached_subjects ADD COLUMN offlinePackSizeMb REAL NOT NULL DEFAULT 0.6")
+            db.execSQL("ALTER TABLE cached_chapter_meta ADD COLUMN titleUrdu TEXT")
+            db.execSQL("ALTER TABLE cached_chapter_meta ADD COLUMN subtitleUrdu TEXT")
+            db.execSQL("ALTER TABLE cached_chapter_meta ADD COLUMN boardWeightageMarks INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE cached_chapter_meta ADD COLUMN pairingHint TEXT")
+            db.execSQL("ALTER TABLE cached_chapter_meta ADD COLUMN nightBeforeSummary TEXT")
+            db.execSQL("ALTER TABLE cached_mcqs ADD COLUMN questionUrdu TEXT")
+            db.execSQL("ALTER TABLE cached_mcqs ADD COLUMN optionsUrduJson TEXT NOT NULL DEFAULT '[]'")
+            db.execSQL("ALTER TABLE cached_mcqs ADD COLUMN explanationUrdu TEXT")
+            db.execSQL("ALTER TABLE flashcard_reviews ADD COLUMN frontUrdu TEXT")
+            db.execSQL("ALTER TABLE flashcard_reviews ADD COLUMN backUrdu TEXT")
+        }
+    }
+
     fun getInstance(context: Context): ImtihanDatabase {
         return INSTANCE ?: synchronized(this) {
             INSTANCE ?: Room.databaseBuilder(
@@ -653,7 +682,7 @@ object ImtihanDatabaseProvider {
                 ImtihanDatabase::class.java,
                 "imtihan_pro_local.db"
             )
-                .addMigrations(MIGRATION_2_3)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
                 .fallbackToDestructiveMigration()
                 .build()
                 .also { INSTANCE = it }

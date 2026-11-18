@@ -1,34 +1,55 @@
-<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Silver Blue Navy Rounded Tile Background -->
+    <!-- OLED Deep Obsidian Sky Background -->
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:endX="108"
+                android:endY="108"
+                android:startX="0"
+                android:startY="0"
+                android:type="linear">
+                <item android:color="#FF020612" android:offset="0" />
+                <item android:color="#FF091B42" android:offset="0.55" />
+                <item android:color="#FF030A1C" android:offset="1" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Subtle Neo-Silver Glass Outer Ring -->
     <path
-        android:fillColor="#060E21"
-        android:pathData="M24,6 L84,6 A18,18 0 0,1 102,24 L102,84 A18,18 0 0,1 84,102 L24,102 A18,18 0 0,1 6,84 L6,24 A18,18 0 0,1 24,6 Z" />
+        android:fillColor="#00000000"
+        android:pathData="M54,10 A44,44 0 1,1 53.99,10 Z"
+        android:strokeColor="#22E2ECFF"
+        android:strokeWidth="0.9" />
+    <!-- Geometric Open Book Base -->
     <path
-        android:fillColor="#112247"
-        android:strokeColor="#28447E"
-        android:strokeWidth="2"
-        android:pathData="M26,10 L82,10 A16,16 0 0,1 98,26 L98,82 A16,16 0 0,1 82,98 L26,98 A16,16 0 0,1 10,82 L10,26 A16,16 0 0,1 26,10 Z" />
-    <!-- Academic Cap Roof -->
+        android:fillColor="#1E3A8A"
+        android:pathData="M24,39 C34,37 46,41 54,48 L54,77 C46,71 34,68 24,70 Z" />
     <path
-        android:fillColor="#3B82F6"
-        android:pathData="M54,28 L84,42 L54,56 L24,42 Z" />
-    <!-- Cap Highlight -->
+        android:fillColor="#2563EB"
+        android:pathData="M84,39 C74,37 62,41 54,48 L54,77 C62,71 74,68 84,70 Z" />
+    <!-- Crisp Neo-Silver Page Highlights -->
     <path
-        android:fillColor="#60A5FA"
-        android:pathData="M54,28 L84,42 L54,48 L36,39 Z" />
-    <!-- Book / Base Shield -->
-    <path
-        android:fillColor="#F0F6FF"
-        android:pathData="M34,53 L54,62 L74,53 L74,69 L54,78 L34,69 Z" />
-    <!-- Tassel -->
-    <path
-        android:strokeColor="#F59E0B"
-        android:strokeWidth="2.5"
+        android:fillColor="#00000000"
+        android:pathData="M29,46 C37,45 45,48 51,53"
+        android:strokeColor="#DDE7FA"
         android:strokeLineCap="round"
-        android:pathData="M78,45 L78,63" />
+        android:strokeWidth="2.4" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M79,46 C71,45 63,48 57,53"
+        android:strokeColor="#DDE7FA"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.4" />
+    <!-- Glowing Crescent Arc & North Star Spark -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M61,21 C54.5,21.5 49.5,27 50,33.5 C50.4,38.5 54,42.3 58.6,43.2 C52.8,43.8 47,39.7 46,33.4 C44.9,26.4 50.1,19.9 57.2,19.9 C58.6,19.9 59.9,20.3 61,21 Z" />
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M66,22 L67.8,26.8 L72.6,28.6 L67.8,30.4 L66,35.2 L64.2,30.4 L59.4,28.6 L64.2,26.8 Z" />
 </vector>

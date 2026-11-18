@@ -409,6 +409,8 @@ export async function handleLearningRoutes(
         repetitions: number | null;
         next_review_at_iso: string | null;
         last_reviewed_at_iso: string | null;
+        front_urdu?: string;
+        back_urdu?: string;
       }>();
 
     const nowIso = new Date().toISOString();
@@ -425,6 +427,8 @@ export async function handleLearningRoutes(
       repetitions: Number(r.repetitions ?? 0),
       nextReviewAtIso: r.next_review_at_iso ?? nowIso,
       lastReviewedAtIso: r.last_reviewed_at_iso ?? null,
+      frontUrdu: r.front_urdu || undefined,
+      backUrdu: r.back_urdu || undefined,
     }));
 
     if (dueOnly) {

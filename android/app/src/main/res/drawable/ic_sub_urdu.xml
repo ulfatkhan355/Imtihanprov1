@@ -1,0 +1,24 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Calligraphy Reed Nib (Qalam) + Crescent Motif -->
+    <path
+        android:fillColor="#10B981"
+        android:fillAlpha="0.28"
+        android:pathData="M18,4 L12,10 L10,16 L14,14 L20,8 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M19,5 L10,14 L8.5,18.5 L13,17 L20,8 Z M10,14 L13,17"
+        android:strokeColor="#34D399"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="1.6" />
+    <path
+        android:fillColor="#E2ECFF"
+        android:pathData="M5,19 H14"
+        android:strokeColor="#E2ECFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="1.5" />
+</vector>

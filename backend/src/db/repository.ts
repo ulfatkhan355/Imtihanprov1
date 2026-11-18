@@ -115,7 +115,7 @@ export async function listSubjects(
     params.push(filters.classLevel);
   }
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
-  const sql = `SELECT id, class_id, class_level, board_code, code, name, icon_key, accent_hex, total_chapters, published_chapters, is_offline_pack_available, coverage_status, updated_at_iso, study_groups_json, description, textbook_pdf_id FROM subjects ${where} ORDER BY class_level ASC, name ASC`;
+  const sql = `SELECT id, class_id, class_level, board_code, code, name, icon_key, accent_hex, total_chapters, published_chapters, is_offline_pack_available, coverage_status, updated_at_iso, study_groups_json, description, textbook_pdf_id, pairing_scheme_summary, offline_pack_size_mb FROM subjects ${where} ORDER BY class_level ASC, name ASC`;
   const stmt = params.length ? db.prepare(sql).bind(...params) : db.prepare(sql);
   const res = await stmt.all<{
     id: string;
@@ -134,6 +134,8 @@ export async function listSubjects(
     study_groups_json: string;
     description: string;
     textbook_pdf_id: string | null;
+    pairing_scheme_summary?: string;
+    offline_pack_size_mb?: number;
   }>();
 
   const mapped = res.results.map((r) => ({
@@ -153,6 +155,8 @@ export async function listSubjects(
     studyGroups: safeJsonParse<StudyGroupCode[]>(r.study_groups_json, []),
     description: r.description || '',
     textbookPdfId: r.textbook_pdf_id ?? null,
+    pairingSchemeSummary: r.pairing_scheme_summary || '',
+    offlinePackSizeMb: Number(r.offline_pack_size_mb ?? 0.6),
   }));
 
   if (filters?.studyGroup) {
@@ -191,6 +195,11 @@ export async function listChapters(
     difficulty_tag?: 'easy' | 'medium' | 'hard';
     source_reference?: string;
     reviewed_by_name?: string | null;
+    title_urdu?: string;
+    subtitle_urdu?: string;
+    board_weightage_marks?: number;
+    pairing_hint?: string;
+    night_before_summary?: string;
   }>();
 
   return res.results.map((r) => ({
@@ -215,6 +224,11 @@ export async function listChapters(
     difficultyTag: r.difficulty_tag || 'medium',
     sourceReference: r.source_reference || 'KPK Textbook Board Peshawar',
     reviewedByName: r.reviewed_by_name ?? null,
+    titleUrdu: r.title_urdu || undefined,
+    subtitleUrdu: r.subtitle_urdu || undefined,
+    boardWeightageMarks: Number(r.board_weightage_marks ?? 0),
+    pairingHint: r.pairing_hint || undefined,
+    nightBeforeSummary: r.night_before_summary || undefined,
   }));
 }
 
@@ -399,9 +413,13 @@ interface McqDbRow {
   past_paper_year: number | null;
   publish_status?: PublishStatus;
   source_reference?: string;
+  question_urdu?: string;
+  options_urdu_json?: string;
+  explanation_urdu?: string;
 }
 
 function mapMcqRow(r: McqDbRow): ApiMcqItem {
+  const parsedUrduOptions = safeJsonParse<McqOption[]>(r.options_urdu_json, []);
   return {
     id: r.id,
     chapterId: r.chapter_id,
@@ -416,6 +434,9 @@ function mapMcqRow(r: McqDbRow): ApiMcqItem {
     pastPaperYear: r.past_paper_year ?? undefined,
     publishStatus: r.publish_status || 'published',
     sourceReference: r.source_reference || 'KPK Textbook & Board Papers',
+    questionUrdu: r.question_urdu || undefined,
+    optionsUrdu: parsedUrduOptions.length === 4 ? parsedUrduOptions : undefined,
+    explanationUrdu: r.explanation_urdu || undefined,
   };
 }
 

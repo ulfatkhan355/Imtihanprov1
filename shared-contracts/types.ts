@@ -112,6 +112,8 @@ export interface ApiSubject {
   studyGroups?: StudyGroupCode[];
   description?: string;
   textbookPdfId?: string | null;
+  pairingSchemeSummary?: string;
+  offlinePackSizeMb?: number;
 }
 
 export interface ApiTopic {
@@ -144,6 +146,11 @@ export interface ApiChapter {
   difficultyTag?: 'easy' | 'medium' | 'hard';
   sourceReference?: string;
   reviewedByName?: string | null;
+  titleUrdu?: string;
+  subtitleUrdu?: string;
+  boardWeightageMarks?: number;
+  pairingHint?: string;
+  nightBeforeSummary?: string;
 }
 
 export type ContentBlockType =
@@ -292,6 +299,9 @@ export interface ApiMcqItem {
   pastPaperYear?: number;
   publishStatus?: PublishStatus;
   sourceReference?: string;
+  questionUrdu?: string;
+  optionsUrdu?: McqOption[];
+  explanationUrdu?: string;
 }
 
 export interface ApiQuizSubmissionRequest {
@@ -576,6 +586,8 @@ export interface ApiFlashcard {
   repetitions: number;
   nextReviewAtIso: string;
   lastReviewedAtIso: string | null;
+  frontUrdu?: string;
+  backUrdu?: string;
 }
 
 export interface ApiFlashcardReviewRequest {
@@ -895,6 +907,11 @@ export interface AdminChapterWritePayload {
   curriculumVersion?: string;
   difficultyTag?: 'easy' | 'medium' | 'hard';
   sourceReference?: string;
+  titleUrdu?: string;
+  subtitleUrdu?: string;
+  boardWeightageMarks?: number;
+  pairingHint?: string;
+  nightBeforeSummary?: string;
 }
 
 export interface AdminMcqWritePayload {

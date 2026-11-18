@@ -1,12 +1,18 @@
 package com.imtihanpro.app.ui.navigation
 
 import android.net.Uri
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -14,6 +20,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.imtihanpro.app.domain.model.UiResourceState
+import com.imtihanpro.app.ui.audio.rememberImtihanFeedback
 import com.imtihanpro.app.ui.components.BottomNavTab
 import com.imtihanpro.app.ui.components.ImtihanBottomNavBar
 import com.imtihanpro.app.ui.screens.AiTutorScreen
@@ -24,6 +31,7 @@ import com.imtihanpro.app.ui.screens.DetailedNotesScreen
 import com.imtihanpro.app.ui.screens.DownloadsScreen
 import com.imtihanpro.app.ui.screens.FeedbackReportScreen
 import com.imtihanpro.app.ui.screens.FirstTimeSetupScreen
+import com.imtihanpro.app.ui.screens.FocusPomodoroScreen
 import com.imtihanpro.app.ui.screens.HomeDashboardScreen
 import com.imtihanpro.app.ui.screens.McqPracticeScreen
 import com.imtihanpro.app.ui.screens.MistakeMasterScreen
@@ -41,6 +49,7 @@ import com.imtihanpro.app.ui.screens.SplashScreen
 import com.imtihanpro.app.ui.screens.StudyPlannerScreen
 import com.imtihanpro.app.ui.screens.SubjectDetailsScreen
 import com.imtihanpro.app.ui.screens.SubjectListingScreen
+import com.imtihanpro.app.ui.share.ShareCardGenerator
 import com.imtihanpro.app.ui.theme.LocalImtihanColors
 import com.imtihanpro.app.ui.viewmodel.ImtihanViewModel
 
@@ -68,6 +77,7 @@ object Routes {
     const val QUIZ_HISTORY = "quiz_history"
     const val AI_TUTOR = "ai_tutor"
     const val STUDY_PLANNER = "study_planner"
+    const val FOCUS_TIMER = "focus_timer"
     const val MOTIVATION = "motivation"
     const val FEEDBACK = "feedback"
 
@@ -113,6 +123,11 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
     val feedbackStatus by viewModel.feedbackStatusMessage.collectAsState()
 
     val colors = LocalImtihanColors.current
+    val context = LocalContext.current
+    val feedback = rememberImtihanFeedback(
+        soundEnabled = shellState.soundEffectsEnabled,
+        hapticsEnabled = shellState.hapticsEnabled
+    )
 
     val bottomBarRoutes = setOf(
         Routes.HOME,
@@ -140,6 +155,7 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                 ImtihanBottomNavBar(
                     currentRoute = currentRoute,
                     onSelectTab = { tab: BottomNavTab ->
+                        feedback.tap()
                         navController.navigate(tab.route) {
                             popUpTo(Routes.HOME) { saveState = true }
                             launchSingleTop = true
@@ -153,7 +169,19 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
         NavHost(
             navController = navController,
             startDestination = Routes.SPLASH,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding),
+            enterTransition = {
+                fadeIn(tween(220)) + slideInHorizontally(tween(220)) { it / 16 }
+            },
+            exitTransition = {
+                fadeOut(tween(180)) + slideOutHorizontally(tween(180)) { -it / 20 }
+            },
+            popEnterTransition = {
+                fadeIn(tween(200)) + slideInHorizontally(tween(200)) { -it / 16 }
+            },
+            popExitTransition = {
+                fadeOut(tween(180)) + slideOutHorizontally(tween(180)) { it / 16 }
+            }
         ) {
             composable(Routes.SPLASH) {
                 SplashScreen(
@@ -227,6 +255,7 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                     continueChapterTitle = selectedChapter?.let {
                         "Chapter ${it.chapterNumber}: ${it.title}"
                     } ?: "Chapter 1: Physical Quantities & Measurement",
+                    feedback = feedback,
                     onSearchChange = viewModel::updateSearchQuery,
                     onContinueLearning = { navController.navigate(Routes.WORKSPACE) },
                     onViewAllSubjects = { navController.navigate(Routes.SUBJECTS) },
@@ -251,6 +280,26 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                     onOpenBookmarksFlashcards = { navController.navigate(Routes.BOOKMARKS_FLASHCARDS) },
                     onOpenDownloads = { navController.navigate(Routes.DOWNLOADS) },
                     onOpenProfile = { navController.navigate(Routes.PROFILE) },
+                    onToggleSound = { viewModel.toggleSoundEffects() },
+                    onToggleMedium = viewModel::toggleStudyMedium,
+                    onStartRapidFire = {
+                        viewModel.startFiveMinRapidFire {
+                            navController.navigate(Routes.QUIZ_SESSION)
+                        }
+                    },
+                    onOpenFocusTimer = { navController.navigate(Routes.FOCUS_TIMER) },
+                    onShareStreak = {
+                        ShareCardGenerator.shareStreakPoster(
+                            context = context,
+                            studentName = shellState.profile.displayName,
+                            boardLabel = "${shellState.selectedBoardCode} · ${shellState.selectedSubBoardCode}",
+                            classLevel = shellState.selectedClassLevel,
+                            streakDays = shellState.realHomeMetrics.currentStreakDays,
+                            xpTotal = shellState.realHomeMetrics.xpTotal,
+                            chaptersCompleted = shellState.profile.chaptersCompleted,
+                            readinessPercent = smartInsights.readiness.readinessPercent
+                        )
+                    },
                     onBannerDisplayed = viewModel::recordBannerImpression
                 )
             }
@@ -261,6 +310,7 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                     studyGroupCode = shellState.studyGroupCode,
                     subjectsState = subjectsState,
                     onSelectSubject = { subject ->
+                        feedback.tap()
                         viewModel.selectSubject(subject.id)
                         navController.navigate(Routes.SUBJECT_DETAILS)
                     },
@@ -274,8 +324,11 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                     subject = selectedSubject,
                     chaptersState = chaptersState,
                     subjectPdfs = subPdfs,
+                    languageCode = shellState.languageCode,
+                    offlinePackStatusMessage = shellState.offlinePackStatusMessage,
                     onBack = { navController.popBackStack() },
                     onOpenChapter = { chapter ->
+                        feedback.tap()
                         viewModel.selectChapter(chapter.id)
                         navController.navigate(Routes.WORKSPACE)
                     },
@@ -293,7 +346,14 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                         ) {
                             navController.navigate(Routes.QUIZ_SESSION)
                         }
-                    }
+                    },
+                    onDownloadOfflinePack = {
+                        selectedSubject?.let { sub ->
+                            feedback.tap()
+                            viewModel.downloadSubjectOfflinePack(sub.id, sub.name)
+                        }
+                    },
+                    onClearOfflinePackStatus = viewModel::clearOfflinePackStatus
                 )
             }
 
@@ -367,6 +427,16 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                     chapterTitle = selectedChapter?.title ?: "Detailed Notes",
                     blocksState = detailedNotesState,
                     isBookmarked = isChapterBookmarked,
+                    chapterTitleUrdu = selectedChapter?.titleUrdu,
+                    nightBeforeSummary = selectedChapter?.nightBeforeSummary,
+                    languageCode = shellState.languageCode,
+                    readerHighContrastMode = shellState.readerHighContrastMode,
+                    feedback = feedback,
+                    onToggleMedium = viewModel::toggleStudyMedium,
+                    onToggleContrastMode = {
+                        val next = if (shellState.readerHighContrastMode == "PAPER") "OLED" else "PAPER"
+                        viewModel.setReaderHighContrastMode(next)
+                    },
                     onToggleBookmark = {
                         val ch = selectedChapter
                         viewModel.toggleBookmark(
@@ -389,6 +459,16 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                     chapterTitle = selectedChapter?.title ?: "Revision Notes",
                     blocksState = revisionNotesState,
                     isBookmarked = isChapterBookmarked,
+                    chapterTitleUrdu = selectedChapter?.titleUrdu,
+                    nightBeforeSummary = selectedChapter?.nightBeforeSummary,
+                    languageCode = shellState.languageCode,
+                    readerHighContrastMode = shellState.readerHighContrastMode,
+                    feedback = feedback,
+                    onToggleMedium = viewModel::toggleStudyMedium,
+                    onToggleContrastMode = {
+                        val next = if (shellState.readerHighContrastMode == "PAPER") "OLED" else "PAPER"
+                        viewModel.setReaderHighContrastMode(next)
+                    },
                     onToggleBookmark = {
                         val ch = selectedChapter
                         viewModel.toggleBookmark(
@@ -459,6 +539,8 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                 McqPracticeScreen(
                     mcqsState = mcqsState,
                     sessionState = quizState,
+                    languageCode = shellState.languageCode,
+                    feedback = feedback,
                     onBack = { navController.popBackStack() },
                     onSelectOption = viewModel::selectMcqOption,
                     onToggleMarkForReview = viewModel::toggleMarkForReview,
@@ -479,8 +561,19 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
             }
 
             composable(Routes.QUIZ_RESULTS) {
+                val activeSubjName = (subjectsState as? UiResourceState.Success)
+                    ?.data
+                    ?.firstOrNull { it.id == quizState.subjectId }
+                    ?.name ?: selectedSubject?.name ?: "KPK Board Quiz"
                 QuizResultsScreen(
                     result = quizState.latestResult,
+                    studentName = shellState.profile.displayName,
+                    boardLabel = "${shellState.selectedBoardCode} · ${shellState.selectedSubBoardCode}",
+                    classLevel = shellState.selectedClassLevel,
+                    subjectName = activeSubjName,
+                    streakDays = shellState.realHomeMetrics.currentStreakDays,
+                    xpTotal = shellState.realHomeMetrics.xpTotal,
+                    feedback = feedback,
                     onBackToHome = {
                         viewModel.resetQuiz()
                         navController.navigate(Routes.HOME) {
@@ -500,6 +593,16 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                     chapterTitle = selectedChapter?.title ?: "Solved Questions",
                     blocksState = solvedQuestionsState,
                     isBookmarked = isChapterBookmarked,
+                    chapterTitleUrdu = selectedChapter?.titleUrdu,
+                    nightBeforeSummary = selectedChapter?.nightBeforeSummary,
+                    languageCode = shellState.languageCode,
+                    readerHighContrastMode = shellState.readerHighContrastMode,
+                    feedback = feedback,
+                    onToggleMedium = viewModel::toggleStudyMedium,
+                    onToggleContrastMode = {
+                        val next = if (shellState.readerHighContrastMode == "PAPER") "OLED" else "PAPER"
+                        viewModel.setReaderHighContrastMode(next)
+                    },
                     onToggleBookmark = {
                         val ch = selectedChapter
                         viewModel.toggleBookmark(
@@ -593,12 +696,16 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                     onToggleDarkMode = viewModel::toggleDarkMode,
                     onToggleOfflineSimulated = viewModel::toggleOfflineSimulated,
                     onToggleNotifications = viewModel::setNotificationsEnabled,
+                    onToggleSoundEffects = viewModel::toggleSoundEffects,
+                    onToggleHaptics = viewModel::toggleHaptics,
+                    onSetReaderHighContrastMode = viewModel::setReaderHighContrastMode,
                     onCycleLanguage = {
                         val next = if (shellState.languageCode == "English") "Urdu" else "English"
                         viewModel.setLanguage(next)
                     },
                     onOpenDownloads = { navController.navigate(Routes.DOWNLOADS) },
                     onChangeClassOrBoard = { navController.navigate(Routes.SETUP) },
+                    onOpenFocusTimer = { navController.navigate(Routes.FOCUS_TIMER) },
                     onOpenStudyPlanner = { navController.navigate(Routes.STUDY_PLANNER) },
                     onOpenMotivation = { navController.navigate(Routes.MOTIVATION) },
                     onOpenSmartInsights = { navController.navigate(Routes.SMART_INSIGHTS) },
@@ -652,6 +759,8 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                 BookmarksAndFlashcardsScreen(
                     bookmarks = bookmarks,
                     flashcards = flashcards,
+                    languageCode = shellState.languageCode,
+                    feedback = feedback,
                     onBack = { navController.popBackStack() },
                     onOpenBookmark = { bm ->
                         if (!bm.subjectId.isNullOrBlank()) viewModel.selectSubject(bm.subjectId)
@@ -697,6 +806,14 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                     onToggleTask = viewModel::toggleStudyTask,
                     onDeleteTask = viewModel::deleteStudyTask,
                     onUpdateGoals = viewModel::updateStudyGoals,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(Routes.FOCUS_TIMER) {
+                FocusPomodoroScreen(
+                    feedback = feedback,
+                    onLogFocusSession = viewModel::logFocusSession,
                     onBack = { navController.popBackStack() }
                 )
             }

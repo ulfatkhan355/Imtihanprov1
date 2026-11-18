@@ -29,13 +29,14 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.EmojiEvents
+import androidx.compose.material.icons.outlined.FactCheck
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.Quiz
 import androidx.compose.material.icons.outlined.ReportProblem
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.AlertDialog
@@ -50,6 +51,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,21 +60,29 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.imtihanpro.app.domain.model.ExamPatternUi
 import com.imtihanpro.app.domain.model.McqQuestionUi
 import com.imtihanpro.app.domain.model.QuizResultUi
 import com.imtihanpro.app.domain.model.SubjectUiModel
 import com.imtihanpro.app.domain.model.UiResourceState
+import com.imtihanpro.app.ui.audio.ImtihanFeedbackController
+import com.imtihanpro.app.ui.components.AnimatedProgressRing
 import com.imtihanpro.app.ui.components.ImtihanEmptyView
 import com.imtihanpro.app.ui.components.ImtihanErrorView
 import com.imtihanpro.app.ui.components.ImtihanLoadingView
 import com.imtihanpro.app.ui.components.ImtihanProgressBar
 import com.imtihanpro.app.ui.components.SilverBlueCanvas
 import com.imtihanpro.app.ui.components.SilverBlueCard
+import com.imtihanpro.app.ui.components.ZeroPillMetaLine
+import com.imtihanpro.app.ui.share.ShareCardGenerator
 import com.imtihanpro.app.ui.theme.LocalImtihanColors
+import com.imtihanpro.app.ui.theme.urduTextStyle
 import com.imtihanpro.app.ui.viewmodel.QuizSessionState
 import kotlinx.coroutines.delay
 
@@ -289,6 +299,8 @@ fun PracticeHubScreen(
 fun McqPracticeScreen(
     mcqsState: UiResourceState<List<McqQuestionUi>>,
     sessionState: QuizSessionState,
+    languageCode: String = "English",
+    feedback: ImtihanFeedbackController? = null,
     onBack: () -> Unit,
     onSelectOption: (questionId: String, optionId: String) -> Unit,
     onToggleMarkForReview: (questionId: String) -> Unit,
@@ -304,6 +316,8 @@ fun McqPracticeScreen(
 
     var showPaletteDialog by remember { mutableStateOf(false) }
     var showSubjectiveDialog by remember { mutableStateOf(false) }
+    var omrMode by remember { mutableStateOf(false) }
+    val isUrdu = languageCode.equals("Urdu", ignoreCase = true)
 
     val resolvedMcqsState: UiResourceState<List<McqQuestionUi>> = remember(sessionState.customQuestions, mcqsState) {
         val custom = sessionState.customQuestions
@@ -374,6 +388,35 @@ fun McqPracticeScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
+                    if (hasQuestions) {
+                        Surface(
+                            onClick = {
+                                feedback?.tap()
+                                omrMode = !omrMode
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (omrMode) colors.accentBlue else colors.cardElevated,
+                            border = BorderStroke(1.dp, if (omrMode) colors.cyanPulse else colors.cardBorder)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.FactCheck,
+                                    contentDescription = "Toggle OMR Board Sheet",
+                                    tint = if (omrMode) MaterialTheme.colorScheme.onPrimary else colors.cyanPulse,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = if (omrMode) "OMR" else "Drill",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (omrMode) MaterialTheme.colorScheme.onPrimary else colors.textPrimary
+                                )
+                            }
+                        }
+                    }
                     if (sessionState.subjectivePrompts.isNotEmpty()) {
                         IconButton(onClick = { showSubjectiveDialog = true }) {
                             Icon(
@@ -478,11 +521,28 @@ fun McqPracticeScreen(
                                 color = colors.textPrimary
                             )
 
+                            if (isUrdu && !currentQuestion.questionUrdu.isNullOrBlank()) {
+                                SilverBlueCard(modifier = Modifier.fillMaxWidth()) {
+                                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                                        Text(
+                                            text = currentQuestion.questionUrdu,
+                                            style = urduTextStyle(sizeSp = 17f, bold = true),
+                                            color = colors.cyanPulse,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                }
+                            }
+
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                currentQuestion.options.forEach { option ->
+                                currentQuestion.options.forEachIndexed { optIdx, option ->
                                     val isSelected = selectedId == option.id
+                                    val urduOptionText = currentQuestion.optionsUrdu.getOrNull(optIdx)
                                     Surface(
-                                        onClick = { onSelectOption(currentQuestion.id, option.id) },
+                                        onClick = {
+                                            feedback?.tap()
+                                            onSelectOption(currentQuestion.id, option.id)
+                                        },
                                         shape = RoundedCornerShape(14.dp),
                                         color = if (isSelected) colors.accentBlue.copy(alpha = 0.25f) else colors.cardSurface,
                                         border = BorderStroke(
@@ -509,11 +569,85 @@ fun McqPracticeScreen(
                                                     )
                                                 }
                                             }
-                                            Text(
-                                                text = option.text,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = colors.textPrimary
-                                            )
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = option.text,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = colors.textPrimary
+                                                )
+                                                if (isUrdu && !urduOptionText.isNullOrBlank()) {
+                                                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                                                        Text(
+                                                            text = urduOptionText,
+                                                            style = urduTextStyle(sizeSp = 15f),
+                                                            color = colors.cyanPulse,
+                                                            modifier = Modifier.fillMaxWidth()
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (omrMode) {
+                                SilverBlueCard(elevated = true, modifier = Modifier.fillMaxWidth()) {
+                                    ZeroPillMetaLine("KPK BISE OMR BUBBLE SHEET (${sessionState.selectedAnswers.size}/${questions.size} BUBBLED)")
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        questions.forEachIndexed { qIdx, qItem ->
+                                            val chosen = sessionState.selectedAnswers[qItem.id]
+                                            val isCurrent = qIdx == index
+                                            Surface(
+                                                onClick = {
+                                                    feedback?.tap()
+                                                    onJumpToQuestion(qIdx)
+                                                },
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = if (isCurrent) colors.accentBlue.copy(alpha = 0.16f) else colors.canvasDeep.copy(alpha = 0.45f),
+                                                border = BorderStroke(1.dp, if (isCurrent) colors.cyanPulse else colors.cardBorder.copy(alpha = 0.45f)),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Text(
+                                                        text = "Q%02d".format(qIdx + 1),
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        color = if (isCurrent) colors.cyanPulse else colors.textSecondary
+                                                    )
+                                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                        listOf("A", "B", "C", "D").forEach { letter ->
+                                                            val filled = chosen == letter
+                                                            Surface(
+                                                                onClick = {
+                                                                    feedback?.tap()
+                                                                    onJumpToQuestion(qIdx)
+                                                                    onSelectOption(qItem.id, letter)
+                                                                },
+                                                                shape = CircleShape,
+                                                                color = if (filled) colors.accentBlue else colors.cardElevated,
+                                                                border = BorderStroke(
+                                                                    1.dp,
+                                                                    if (filled) colors.cyanPulse else colors.cardBorder
+                                                                ),
+                                                                modifier = Modifier.size(30.dp)
+                                                            ) {
+                                                                Box(contentAlignment = Alignment.Center) {
+                                                                    Text(
+                                                                        text = letter,
+                                                                        style = MaterialTheme.typography.labelSmall,
+                                                                        color = if (filled) MaterialTheme.colorScheme.onPrimary else colors.textPrimary
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -527,7 +661,10 @@ fun McqPracticeScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Checkbox(
                                         checked = marked,
-                                        onCheckedChange = { onToggleMarkForReview(currentQuestion.id) }
+                                        onCheckedChange = {
+                                            feedback?.tap()
+                                            onToggleMarkForReview(currentQuestion.id)
+                                        }
                                     )
                                     Text(
                                         text = "Mark for Review",
@@ -547,7 +684,10 @@ fun McqPracticeScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             if (index > 0) {
                                 OutlinedButton(
-                                    onClick = { onJumpToQuestion(index - 1) },
+                                    onClick = {
+                                        feedback?.tap()
+                                        onJumpToQuestion(index - 1)
+                                    },
                                     modifier = Modifier.height(50.dp),
                                     shape = RoundedCornerShape(14.dp)
                                 ) {
@@ -555,7 +695,10 @@ fun McqPracticeScreen(
                                 }
                             }
                             Button(
-                                onClick = { onNextOrSubmit(questions) },
+                                onClick = {
+                                    feedback?.tap()
+                                    onNextOrSubmit(questions)
+                                },
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(50.dp),
@@ -662,12 +805,26 @@ fun McqPracticeScreen(
 @Composable
 fun QuizResultsScreen(
     result: QuizResultUi?,
+    studentName: String = "Guest Learner",
+    boardLabel: String = "KPK",
+    classLevel: Int = 9,
+    subjectName: String = "KPK Subject",
+    streakDays: Int = 0,
+    xpTotal: Int = 0,
+    feedback: ImtihanFeedbackController? = null,
     onBackToHome: () -> Unit,
     onRetakeQuiz: () -> Unit,
     onOpenMistakeMaster: () -> Unit = {}
 ) {
     val colors = LocalImtihanColors.current
+    val context = LocalContext.current
     var showReviewList by remember { mutableStateOf(false) }
+
+    LaunchedEffect(result) {
+        if (result != null) {
+            if (result.passed) feedback?.fanfare() else feedback?.wrong()
+        }
+    }
 
     SilverBlueCanvas {
         LazyColumn(
@@ -678,13 +835,15 @@ fun QuizResultsScreen(
         ) {
             item {
                 Spacer(modifier = Modifier.height(10.dp))
-                Icon(
-                    imageVector = Icons.Outlined.EmojiEvents,
-                    contentDescription = "Quiz completed trophy",
-                    tint = if (result?.passed == true) colors.warningGold else colors.accentBlue,
-                    modifier = Modifier.size(64.dp)
+                AnimatedProgressRing(
+                    progress = (result?.percentage ?: 0) / 100f,
+                    size = 112.dp,
+                    strokeWidth = 9.dp,
+                    accentColor = if (result?.passed == true) colors.success else colors.warningGold,
+                    centerLabel = "${result?.percentage ?: 0}%",
+                    centerCaption = if (result?.passed == true) "PASSED" else "REVIEW"
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Text(
                     text = if (result?.passed == true) "Quiz Completed · Passed!" else "Quiz Completed",
                     style = MaterialTheme.typography.headlineSmall,
@@ -765,6 +924,33 @@ fun QuizResultsScreen(
                 }
 
                 item {
+                    Button(
+                        onClick = {
+                            feedback?.tap()
+                            ShareCardGenerator.shareQuizScorecard(
+                                context = context,
+                                studentName = studentName,
+                                boardLabel = boardLabel,
+                                classLevel = classLevel,
+                                subjectName = subjectName,
+                                scorePercent = result.percentage,
+                                correctCount = result.correctCount,
+                                totalQuestions = result.totalQuestions,
+                                streakDays = streakDays,
+                                xpTotal = xpTotal
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.cyanPulse)
+                    ) {
+                        Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Share Scorecard to WhatsApp / Story", fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
                     Button(
                         onClick = { showReviewList = !showReviewList },
                         modifier = Modifier

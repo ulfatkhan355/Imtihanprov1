@@ -5,6 +5,9 @@
 -keep class com.imtihanpro.app.data.remote.** { *; }
 -keep class com.imtihanpro.app.data.local.room.** { *; }
 -keep class com.imtihanpro.app.domain.model.** { *; }
+-keep class com.imtihanpro.app.ui.audio.** { *; }
+-keep class com.imtihanpro.app.ui.share.** { *; }
+-keep class androidx.core.content.FileProvider { *; }
 
 # Keep Room generated database implementation classes
 -keep class * extends androidx.room.RoomDatabase
@@ -15,7 +18,9 @@
     <fields>;
 }
 
-# Kotlin Coroutines keep rules
+# Kotlin Coroutines & OkHttp keep rules
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
 -dontwarn kotlinx.coroutines.flow.**
+-dontwarn okhttp3.**
+-dontwarn okio.**

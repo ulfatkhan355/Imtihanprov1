@@ -382,4 +382,67 @@ object Stage3To8Engines {
         val suffix = abs(guestDeviceId.hashCode()).toString().take(4).padStart(4, '0')
         return "${base}_$suffix"
     }
+
+    /**
+     * Computes days remaining until a YYYY-MM-DD KPK BISE board exam date.
+     * Defaults to null if no date is valid/set.
+     */
+    fun computeDaysUntilExam(examDateIso: String?, nowEpochMs: Long = System.currentTimeMillis()): Int? {
+        val raw = examDateIso?.trim()?.take(10) ?: return null
+        if (!Regex("""\d{4}-\d{2}-\d{2}""").matches(raw)) return null
+        val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+            isLenient = false
+        }
+        val targetMs = runCatching { fmt.parse(raw)?.time }.getOrNull() ?: return null
+        val todayStr = fmt.format(nowEpochMs)
+        val todayMs = fmt.parse(todayStr)?.time ?: nowEpochMs
+        val diff = ((targetMs - todayMs) / 86_400_000L).toInt()
+        return max(0, diff)
+    }
+
+    /**
+     * Calculates XP earned for a Focus Pomodoro session.
+     * Completed 15m/25m/50m sprints earn full milestone bonus; early pauses earn partial credit.
+     */
+    fun computeFocusSessionXp(minutesFocused: Int, completedFullSprint: Boolean): Int {
+        val clamped = minutesFocused.coerceIn(0, 180)
+        if (clamped < 1) return 0
+        val base = clamped * 2
+        val bonus = if (completedFullSprint && clamped >= 15) 20 else 0
+        return base + bonus
+    }
+
+    data class BiseWeightageSummary(
+        val totalMappedMarks: Int,
+        val publishedMappedMarks: Int,
+        val highYieldChaptersCount: Int
+    )
+
+    fun calculateBiseWeightageSummary(chapters: List<ChapterUiModel>): BiseWeightageSummary {
+        var total = 0
+        var published = 0
+        var highYield = 0
+        for (ch in chapters) {
+            val marks = max(0, ch.boardWeightageMarks)
+            total += marks
+            if (ch.status != com.imtihanpro.app.domain.model.ChapterProgressStatus.LOCKED) {
+                published += marks
+            }
+            if (marks >= 10) highYield += 1
+        }
+        return BiseWeightageSummary(total, published, highYield)
+    }
+
+    /**
+     * Deterministically selects up to [count] questions for the 5-Minute KPK Rapid Fire sprint.
+     */
+    fun pickRapidFireQuestions(mcqs: List<McqQuestionUi>, count: Int = 5): List<McqQuestionUi> {
+        if (mcqs.isEmpty()) return emptyList()
+        val pastPaperFirst = mcqs.sortedWith(
+            compareByDescending<McqQuestionUi> { it.pastPaperYear != null }
+                .thenBy { it.id }
+        )
+        return pastPaperFirst.take(count.coerceAtLeast(1))
+    }
 }

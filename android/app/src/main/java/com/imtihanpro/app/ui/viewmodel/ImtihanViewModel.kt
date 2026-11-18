@@ -78,6 +78,10 @@ data class AppShellState(
     val adPolicy: AdPlacementPolicyUi = AdPlacementPolicyUi(),
     val aiTutorConfigured: Boolean = false,
     val bannersShownToday: Int = 0,
+    val soundEffectsEnabled: Boolean = true,
+    val hapticsEnabled: Boolean = true,
+    val readerHighContrastMode: String = "OLED",
+    val offlinePackStatusMessage: String? = null,
     val profile: StudentProfileUi = StudentProfileUi(
         displayName = "Guest Learner",
         isGuest = true,
@@ -187,6 +191,9 @@ class ImtihanViewModel(
                             configuredApiBaseUrl = prefs.configuredApiBaseUrl,
                             userEmail = prefs.userEmail,
                             lastSyncedAtIso = prefs.lastSyncedAtIso,
+                            soundEffectsEnabled = prefs.soundEffectsEnabled,
+                            hapticsEnabled = prefs.hapticsEnabled,
+                            readerHighContrastMode = prefs.readerHighContrastMode,
                             profile = current.profile.copy(
                                 displayName = prefs.displayName,
                                 isGuest = !prefs.isGoogleLinked,
@@ -481,6 +488,33 @@ class ImtihanViewModel(
         }
     }
 
+    fun toggleStudyMedium() {
+        val next = if (_shellState.value.languageCode.equals("Urdu", ignoreCase = true)) "English" else "Urdu"
+        setLanguage(next)
+    }
+
+    fun toggleSoundEffects(enabled: Boolean = !_shellState.value.soundEffectsEnabled) {
+        _shellState.update { it.copy(soundEffectsEnabled = enabled) }
+        viewModelScope.launch {
+            preferencesDataStore?.setSoundEffectsEnabled(enabled)
+        }
+    }
+
+    fun toggleHaptics(enabled: Boolean = !_shellState.value.hapticsEnabled) {
+        _shellState.update { it.copy(hapticsEnabled = enabled) }
+        viewModelScope.launch {
+            preferencesDataStore?.setHapticsEnabled(enabled)
+        }
+    }
+
+    fun setReaderHighContrastMode(mode: String) {
+        val normalized = if (mode == "PAPER") "PAPER" else "OLED"
+        _shellState.update { it.copy(readerHighContrastMode = normalized) }
+        viewModelScope.launch {
+            preferencesDataStore?.setReaderHighContrastMode(normalized)
+        }
+    }
+
     fun setNotificationsEnabled(enabled: Boolean) {
         _shellState.update { it.copy(notificationsEnabled = enabled) }
         viewModelScope.launch {
@@ -689,6 +723,36 @@ class ImtihanViewModel(
             questionCount = 8,
             onStarted = onStarted
         )
+    }
+
+    fun startFiveMinRapidFire(onStarted: () -> Unit = {}) {
+        val shell = _shellState.value
+        val classSubIds = com.imtihanpro.app.data.repository.MockSeedDataSource.subjects
+            .filter { it.classLevel == shell.selectedClassLevel }
+            .map { it.id }
+            .toSet()
+        val pool = com.imtihanpro.app.data.repository.MockSeedDataSource.mcqs
+            .filter { it.subjectId in classSubIds || classSubIds.isEmpty() }
+            .map { com.imtihanpro.app.data.mapper.CurriculumMappers.toMcqUi(it) }
+        val picked = Stage3To8Engines.pickRapidFireQuestions(pool, count = 5)
+        if (picked.isEmpty()) return
+        _quizState.value = QuizSessionState(
+            chapterId = picked.first().chapterId,
+            subjectId = picked.first().subjectId,
+            sessionId = "rapid_fire_5m",
+            title = "5-Min KPK Rapid Fire",
+            mode = "rapid_fire",
+            currentIndex = 0,
+            selectedAnswers = emptyMap(),
+            markedForReviewIds = emptySet(),
+            elapsedSeconds = 0,
+            durationMinutes = 5,
+            marksPerMcq = 1.0,
+            negativeMarkingPenalty = 0.0,
+            passPercentage = 60,
+            customQuestions = picked
+        )
+        onStarted()
     }
 
     fun startMistakeRetryQuiz(mistakes: List<MistakeRecordUi>, onStarted: () -> Unit = {}) {
@@ -989,6 +1053,29 @@ class ImtihanViewModel(
     fun deletePdfNote(annotationId: String) {
         viewModelScope.launch {
             repository.deletePdfAnnotation(annotationId)
+        }
+    }
+
+    fun downloadSubjectOfflinePack(subjectId: String, subjectName: String) {
+        viewModelScope.launch {
+            _shellState.update { it.copy(offlinePackStatusMessage = "Downloading $subjectName offline pack…") }
+            val res = repository.downloadSubjectOfflinePack(subjectId)
+            val msg = res.fold(
+                onSuccess = { count -> "$subjectName: $count chapter(s) + MCQs saved offline." },
+                onFailure = { err -> err.message ?: "Unable to cache offline pack." }
+            )
+            _shellState.update { it.copy(offlinePackStatusMessage = msg) }
+        }
+    }
+
+    fun clearOfflinePackStatus() {
+        _shellState.update { it.copy(offlinePackStatusMessage = null) }
+    }
+
+    fun logFocusSession(minutes: Int, completed: Boolean, onXpEarned: (Int) -> Unit = {}) {
+        viewModelScope.launch {
+            val xp = repository.logFocusPomodoroSession(minutes, completed)
+            onXpEarned(xp)
         }
     }
 

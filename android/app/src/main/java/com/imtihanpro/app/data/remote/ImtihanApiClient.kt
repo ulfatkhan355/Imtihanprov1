@@ -129,7 +129,9 @@ object ApiContentJsonParser {
                     coverageStatus = o.optString("coverageStatus", "structure_ready"),
                     studyGroups = jsonStringList(o.optJSONArray("studyGroups")),
                     description = o.optString("description", ""),
-                    textbookPdfId = o.optString("textbookPdfId").takeIf { it.isNotEmpty() && it != "null" }
+                    textbookPdfId = o.optString("textbookPdfId").takeIf { it.isNotEmpty() && it != "null" },
+                    pairingSchemeSummary = o.optString("pairingSchemeSummary").takeIf { it.isNotEmpty() && it != "null" },
+                    offlinePackSizeMb = o.optDouble("offlinePackSizeMb", 0.6)
                 )
             )
         }
@@ -155,7 +157,12 @@ object ApiContentJsonParser {
                     estimatedSizeKb = o.optInt("estimatedSizeKb", 250),
                     topics = parseTopics(o.optJSONArray("topics")),
                     difficultyTag = o.optString("difficultyTag").takeIf { it.isNotEmpty() && it != "null" },
-                    sourceReference = o.optString("sourceReference").takeIf { it.isNotEmpty() && it != "null" }
+                    sourceReference = o.optString("sourceReference").takeIf { it.isNotEmpty() && it != "null" },
+                    titleUrdu = o.optString("titleUrdu").takeIf { it.isNotEmpty() && it != "null" },
+                    subtitleUrdu = o.optString("subtitleUrdu").takeIf { it.isNotEmpty() && it != "null" },
+                    boardWeightageMarks = o.optInt("boardWeightageMarks", 0),
+                    pairingHint = o.optString("pairingHint").takeIf { it.isNotEmpty() && it != "null" },
+                    nightBeforeSummary = o.optString("nightBeforeSummary").takeIf { it.isNotEmpty() && it != "null" }
                 )
             )
         }
@@ -387,7 +394,10 @@ object ApiContentJsonParser {
             explanation = o.optString("explanation", ""),
             difficulty = o.optString("difficulty", "medium"),
             topicTitle = o.optString("topicTitle", "Core Concepts"),
-            pastPaperYear = if (o.has("pastPaperYear") && !o.isNull("pastPaperYear")) o.optInt("pastPaperYear") else null
+            pastPaperYear = if (o.has("pastPaperYear") && !o.isNull("pastPaperYear")) o.optInt("pastPaperYear") else null,
+            questionUrdu = o.optString("questionUrdu").takeIf { it.isNotEmpty() && it != "null" },
+            optionsUrdu = jsonStringList(o.optJSONArray("optionsUrdu")),
+            explanationUrdu = o.optString("explanationUrdu").takeIf { it.isNotEmpty() && it != "null" }
         )
     }
 
@@ -709,7 +719,9 @@ object ApiContentJsonParser {
                     easeFactor = o.optDouble("easeFactor", 2.5),
                     repetitions = o.optInt("repetitions", 0),
                     nextReviewAtIso = o.optString("nextReviewAtIso", ""),
-                    lastReviewedAtIso = o.optString("lastReviewedAtIso").takeIf { it.isNotEmpty() && it != "null" }
+                    lastReviewedAtIso = o.optString("lastReviewedAtIso").takeIf { it.isNotEmpty() && it != "null" },
+                    frontUrdu = o.optString("frontUrdu").takeIf { it.isNotEmpty() && it != "null" },
+                    backUrdu = o.optString("backUrdu").takeIf { it.isNotEmpty() && it != "null" }
                 )
             )
         }
@@ -842,6 +854,11 @@ object ApiContentJsonParser {
             arr.put(JSONObject().put("id", id).put("text", text))
         }
         return arr.toString()
+    }
+
+    fun parseStringList(json: String?): List<String> {
+        if (json.isNullOrBlank()) return emptyList()
+        return runCatching { jsonStringList(JSONArray(json)) }.getOrElse { emptyList() }
     }
 
     private fun jsonStringList(array: JSONArray?): List<String> {
