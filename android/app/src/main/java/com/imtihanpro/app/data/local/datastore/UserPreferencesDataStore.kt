@@ -24,10 +24,10 @@ data class UserPreferencesState(
     val userEmail: String? = null,
     val authToken: String? = null,
     val isGoogleLinked: Boolean = false,
-    val selectedClassLevel: Int = 9,
+    val selectedClassLevel: Int = 11,
     val selectedBoardCode: String = "KPK",
     val selectedSubBoardCode: String = "PESHAWAR",
-    val studyGroupCode: String = "SCIENCE_BIOLOGY",
+    val studyGroupCode: String = "PRE_MEDICAL",
     val isDarkMode: Boolean = true,
     val languageCode: String = "English",
     val notificationsEnabled: Boolean = true,
@@ -88,7 +88,7 @@ class UserPreferencesDataStore(private val context: Context) {
             "ur", "Urdu" -> "Urdu"
             else -> rawLang
         }
-        val cls = prefs[Keys.SELECTED_CLASS] ?: 9
+        val cls = prefs[Keys.SELECTED_CLASS] ?: 11
         UserPreferencesState(
             hasCompletedSetup = prefs[Keys.HAS_COMPLETED_SETUP] ?: false,
             guestDeviceId = prefs[Keys.GUEST_DEVICE_ID] ?: "guest-local-device",

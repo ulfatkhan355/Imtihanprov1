@@ -121,12 +121,12 @@ class CurriculumAndQuizTests {
             viewModel.pastPapersState.collect {}
         }
 
-        val class10State = viewModel.pastPapersState.first { it !is UiResourceState.Loading }
-        assertTrue(class10State is UiResourceState.Success)
+        val class11State = viewModel.pastPapersState.first { it !is UiResourceState.Loading }
+        assertTrue(class11State is UiResourceState.Success)
 
-        viewModel.selectClassAndBoard(classLevel = 11, boardCode = "KPK")
-        val class11State = viewModel.pastPapersState.first { it is UiResourceState.Empty }
-        assertTrue(class11State is UiResourceState.Empty)
+        viewModel.selectClassAndBoard(classLevel = 12, boardCode = "KPK")
+        val class12State = viewModel.pastPapersState.first { it is UiResourceState.Empty }
+        assertTrue(class12State is UiResourceState.Empty)
 
         collectorJob.cancel()
     }

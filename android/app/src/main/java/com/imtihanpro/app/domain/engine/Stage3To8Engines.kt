@@ -113,7 +113,7 @@ object Stage3To8Engines {
 
         val review = questions.map { q ->
             val chosen = selectedAnswers[q.id]
-            val isCorrect = chosen != null && chosen == q.correctOptionId
+            val isCorrect = chosen != null && q.correctOptionId != null && chosen == q.correctOptionId
             when {
                 chosen == null -> unanswered += 1
                 isCorrect -> correct += 1
@@ -128,7 +128,7 @@ object Stage3To8Engines {
                 question = q.question,
                 selectedOptionId = chosen,
                 correctOptionId = q.correctOptionId,
-                explanation = q.explanation,
+                explanation = q.explanation ?: "",
                 isCorrect = isCorrect,
                 topicTitle = topic
             )

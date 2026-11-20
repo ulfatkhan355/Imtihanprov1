@@ -63,11 +63,11 @@ export async function listAcademicClasses(
   boardCode?: string
 ): Promise<ApiAcademicClass[]> {
   const query = boardCode
-    ? `SELECT ac.id, ac.level, ac.label, ac.board_id, ac.board_code, ac.academic_year, ac.coverage_status, ac.notes,
+    ? `SELECT ac.id, ac.level, ac.label, ac.board_id, ac.board_code, ac.academic_year, ac.coverage_status, ac.notes, ac.is_public_available,
        (SELECT COUNT(*) FROM subjects s WHERE s.class_id = ac.id) AS subject_count,
        (SELECT COALESCE(SUM(s.published_chapters), 0) FROM subjects s WHERE s.class_id = ac.id) AS published_chapters_count
        FROM academic_classes ac WHERE ac.board_code = ? ORDER BY ac.level ASC`
-    : `SELECT ac.id, ac.level, ac.label, ac.board_id, ac.board_code, ac.academic_year, ac.coverage_status, ac.notes,
+    : `SELECT ac.id, ac.level, ac.label, ac.board_id, ac.board_code, ac.academic_year, ac.coverage_status, ac.notes, ac.is_public_available,
        (SELECT COUNT(*) FROM subjects s WHERE s.class_id = ac.id) AS subject_count,
        (SELECT COALESCE(SUM(s.published_chapters), 0) FROM subjects s WHERE s.class_id = ac.id) AS published_chapters_count
        FROM academic_classes ac ORDER BY ac.board_code ASC, ac.level ASC`;
@@ -82,6 +82,7 @@ export async function listAcademicClasses(
     academic_year: string;
     coverage_status: ContentCoverageStatus;
     notes: string;
+    is_public_available?: number;
     subject_count: number;
     published_chapters_count: number;
   }>();
@@ -97,6 +98,7 @@ export async function listAcademicClasses(
     subjectCount: Number(r.subject_count || 0),
     publishedChaptersCount: Number(r.published_chapters_count || 0),
     notes: r.notes,
+    isPublicAvailable: r.is_public_available === 1,
   }));
 }
 
@@ -437,6 +439,16 @@ function mapMcqRow(r: McqDbRow): ApiMcqItem {
     questionUrdu: r.question_urdu || undefined,
     optionsUrdu: parsedUrduOptions.length === 4 ? parsedUrduOptions : undefined,
     explanationUrdu: r.explanation_urdu || undefined,
+  };
+}
+
+/** Strips answer keys and explanations before sending MCQs for a live graded exam session. */
+export function stripMcqAnswerKey(mcq: ApiMcqItem): ApiMcqItem {
+  const { correctOptionId: _c, explanation: _e, explanationUrdu: _eu, ...rest } = mcq;
+  return {
+    ...rest,
+    correctOptionId: null,
+    explanation: null,
   };
 }
 
@@ -1126,7 +1138,7 @@ export async function getStudentProgressRecord(
     selectedClass: st.selected_class,
     selectedBoard: st.selected_board,
     selectedSubBoard: st.selected_sub_board ?? 'PESHAWAR',
-    studyGroup: st.study_group ?? 'SCIENCE_BIOLOGY',
+    studyGroup: st.study_group ?? (st.selected_class >= 11 ? 'PRE_MEDICAL' : 'SCIENCE_BIOLOGY'),
     language: st.language ?? 'en',
     studyHoursTotal: Number(st.study_hours_total),
     chaptersCompletedCount: completedCount,

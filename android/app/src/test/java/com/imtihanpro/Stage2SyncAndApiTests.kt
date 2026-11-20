@@ -120,10 +120,35 @@ class Stage2SyncAndApiTests {
             )
 
             val outFile = File(tempDir, "paper_1.pdf")
-            val ok = client.downloadPdfToFile(server.url("/v1").toString(), "pdf_001", outFile)
+            val validSha256 = java.security.MessageDigest.getInstance("SHA-256")
+                .digest(validPdfBytes)
+                .joinToString("") { "%02x".format(it) }
+            val ok = client.downloadPdfToFile(
+                server.url("/v1").toString(),
+                "pdf_001",
+                outFile,
+                expectedSha256 = validSha256
+            )
             assertTrue(ok is ApiResult.Success)
             assertTrue(outFile.exists())
             assertEquals(validPdfBytes.size.toLong(), outFile.length())
+
+            // Reject mismatched SHA-256 checksum
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setHeader("Content-Type", "application/pdf")
+                    .setBody(Buffer().write(validPdfBytes))
+            )
+            val hashFailFile = File(tempDir, "paper_bad_sha.pdf")
+            val hashFail = client.downloadPdfToFile(
+                server.url("/v1").toString(),
+                "pdf_001",
+                hashFailFile,
+                expectedSha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+            )
+            assertTrue(hashFail is ApiResult.Failure)
+            assertFalse(hashFailFile.exists())
 
             // Reject invalid non-PDF payload
             server.enqueue(
@@ -163,5 +188,63 @@ class Stage2SyncAndApiTests {
         assertTrue(ImtihanSyncRules.validateWorkerBaseUrl("http://192.168.1.42:8787/v1").first)
         assertTrue(ImtihanSyncRules.validateWorkerBaseUrl("https://imtihan-pro-api.workers.dev/v1").first)
         assertFalse(ImtihanSyncRules.validateWorkerBaseUrl("http://public.example.com/v1").first)
+    }
+
+    @Test
+    fun `downloadPdfToFile resumes partial tmp file using Range header on 206 response`() = runTest {
+        val tempDir = Files.createTempDirectory("imtihan_resume_test").toFile()
+        try {
+            val part1 = "%PDF-1.4\n1 0 ".toByteArray(Charsets.US_ASCII)
+            val part2 = "obj\n<<>>\nendobj\n%%EOF".toByteArray(Charsets.US_ASCII)
+            val combined = part1 + part2
+
+            val outFile = File(tempDir, "resumed.pdf")
+            val partialTmp = File(tempDir, "resumed.pdf.tmp")
+            partialTmp.writeBytes(part1)
+
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(206)
+                    .setHeader("Content-Type", "application/pdf")
+                    .setBody(Buffer().write(part2))
+            )
+
+            val expectedSha = java.security.MessageDigest.getInstance("SHA-256")
+                .digest(combined)
+                .joinToString("") { "%02x".format(it) }
+
+            val res = client.downloadPdfToFile(
+                baseUrl = server.url("/v1").toString(),
+                pdfId = "pdf_resume",
+                destinationFile = outFile,
+                expectedSha256 = expectedSha
+            )
+            assertTrue(res is ApiResult.Success)
+            assertTrue(outFile.exists())
+            assertFalse(partialTmp.exists())
+            assertEquals(combined.size.toLong(), outFile.length())
+
+            val recordedRequest = server.takeRequest()
+            assertEquals("bytes=${part1.size}-", recordedRequest.getHeader("Range"))
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `latexToHtmlFragment renders fractions, roots, matrices and escapes HTML`() {
+        val fracHtml = com.imtihanpro.app.ui.components.latexToHtmlFragment("\\frac{a+b}{c}")
+        assertTrue(fracHtml.contains("class=\"frac\""))
+        assertTrue(fracHtml.contains("<span class=\"num\">a+b</span>"))
+        assertTrue(fracHtml.contains("<span class=\"den\">c</span>"))
+
+        val matrixHtml = com.imtihanpro.app.ui.components.latexToHtmlFragment("\\begin{bmatrix}1 & 0\\\\0 & 1\\end{bmatrix}")
+        assertTrue(matrixHtml.contains("matrix-wrap"))
+        assertTrue(matrixHtml.contains("repeat(2, auto)"))
+
+        val escaped = com.imtihanpro.app.ui.components.latexToHtmlFragment("x < y & \\sqrt{9}")
+        assertTrue(escaped.contains("&lt;"))
+        assertTrue(escaped.contains("&amp;"))
+        assertTrue(escaped.contains("class=\"sqrt\""))
     }
 }

@@ -209,7 +209,7 @@ export async function handleTutorRoutes(
     }
   }
 
-  const model = (env.AI_PROVIDER_MODEL || 'gemini-2.5-flash').trim();
+  const model = (env.AI_PROVIDER_MODEL || 'gemini-4-hydrogen').trim();
   const baseUrl = (
     env.AI_PROVIDER_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta'
   ).replace(/\/+$/, '');

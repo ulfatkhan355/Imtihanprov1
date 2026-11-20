@@ -213,8 +213,8 @@ data class ApiMcqQuestionDto(
     val subjectId: String,
     val question: String,
     val options: List<Pair<String, String>>,
-    val correctOptionId: String,
-    val explanation: String,
+    val correctOptionId: String? = null,
+    val explanation: String? = null,
     val difficulty: String = "medium",
     val topicTitle: String = "Core Concepts",
     val pastPaperYear: Int? = null,
@@ -256,6 +256,16 @@ data class ApiStudentProgressDto(
     val diagnosticCompleted: Boolean = false,
     val xpTotal: Int = 0,
     val currentStreakDays: Int = 0
+) {
+    val localProfileId: String get() = studentId
+}
+
+data class ApiQuizQuestionFeedbackDto(
+    val mcqId: String,
+    val selectedOptionId: String? = null,
+    val isCorrect: Boolean,
+    val correctOptionId: String? = null,
+    val explanation: String = ""
 )
 
 data class ApiQuizSubmissionResultDto(
@@ -270,7 +280,8 @@ data class ApiQuizSubmissionResultDto(
     val totalMarks: Double = totalQuestions.toDouble(),
     val passed: Boolean = true,
     val passPercentage: Int = 40,
-    val xpEarned: Int = correctCount * 10
+    val xpEarned: Int = correctCount * 10,
+    val perQuestionFeedback: List<ApiQuizQuestionFeedbackDto> = emptyList()
 )
 
 data class ApiExamPatternDto(
@@ -488,7 +499,9 @@ data class ApiAdPlacementConfigDto(
 
 data class ApiPublicRuntimeConfigDto(
     val defaultBoardCode: String = "KPK",
-    val defaultClassLevel: Int = 9,
+    val defaultClassLevel: Int = 11,
+    val availableClassLevels: List<Int> = listOf(11),
+    val defaultStudyGroup: String = "PRE_MEDICAL",
     val kpkSubBoards: List<ApiKpkSubBoardDto> = emptyList(),
     val studyGroups: List<ApiStudyGroupDto> = emptyList(),
     val adPlacement: ApiAdPlacementConfigDto = ApiAdPlacementConfigDto(),

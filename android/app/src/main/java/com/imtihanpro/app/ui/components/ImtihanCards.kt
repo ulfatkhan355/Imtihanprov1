@@ -71,15 +71,11 @@ fun SilverBlueCard(
     )
 
     val container = if (elevated) colors.cardElevated else colors.cardSurface
-    val shape = RoundedCornerShape(20.dp)
-    val glassBrush = Brush.linearGradient(
-        colors = listOf(
-            colors.glassTopSheen.copy(alpha = if (colors.isDark) 0.45f else 0.85f),
-            colors.cardBorder.copy(alpha = if (elevated) 0.72f else 0.45f),
-            colors.cyanPulse.copy(alpha = if (elevated) 0.35f else 0.16f),
-        )
+    val shape = RoundedCornerShape(com.imtihanpro.app.ui.theme.ImtihanRadii.card)
+    val borderColor = colors.cardBorder.copy(
+        alpha = if (elevated) 0.9f else if (colors.isDark) 0.75f else 0.9f
     )
-    val border = BorderStroke(1.dp, glassBrush)
+    val border = BorderStroke(com.imtihanpro.app.ui.theme.ImtihanDimensions.hairlineBorder, borderColor)
 
     if (onClick != null) {
         Surface(
@@ -90,7 +86,7 @@ fun SilverBlueCard(
                 scaleY = scale
             },
             shape = shape,
-            color = container.copy(alpha = if (colors.isDark) 0.92f else 0.98f),
+            color = container,
             border = border,
             tonalElevation = 0.dp
         ) {
@@ -100,7 +96,7 @@ fun SilverBlueCard(
         Surface(
             modifier = modifier,
             shape = shape,
-            color = container.copy(alpha = if (colors.isDark) 0.92f else 0.98f),
+            color = container,
             border = border,
             tonalElevation = 0.dp
         ) {
@@ -115,40 +111,11 @@ fun SilverBlueCanvas(
     content: @Composable () -> Unit
 ) {
     val colors = LocalImtihanColors.current
-    val brush = Brush.verticalGradient(
-        colors = listOf(colors.canvasDeep, colors.canvasMid, colors.canvasDeep)
-    )
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(brush)
+            .background(colors.canvasDeep)
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        colors.accentBlue.copy(alpha = if (colors.isDark) 0.14f else 0.08f),
-                        Color.Transparent
-                    ),
-                    center = Offset(size.width * 0.88f, size.height * 0.09f),
-                    radius = size.width * 0.75f
-                ),
-                radius = size.width * 0.75f,
-                center = Offset(size.width * 0.88f, size.height * 0.09f)
-            )
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        colors.cyanPulse.copy(alpha = if (colors.isDark) 0.08f else 0.04f),
-                        Color.Transparent
-                    ),
-                    center = Offset(size.width * 0.12f, size.height * 0.72f),
-                    radius = size.width * 0.6f
-                ),
-                radius = size.width * 0.6f,
-                center = Offset(size.width * 0.12f, size.height * 0.72f)
-            )
-        }
         content()
     }
 }

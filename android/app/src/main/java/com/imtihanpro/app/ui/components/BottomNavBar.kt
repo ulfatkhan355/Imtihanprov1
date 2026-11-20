@@ -1,10 +1,16 @@
 package com.imtihanpro.app.ui.components
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoStories
-import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Insights
+import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Quiz
 import androidx.compose.material3.HorizontalDivider
@@ -15,20 +21,24 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.imtihanpro.app.ui.theme.LocalImtihanColors
 
 enum class BottomNavTab(
     val route: String,
     val label: String,
-    val icon: ImageVector
+    val selectedIcon: ImageVector,
+    val unselectedIcon: ImageVector
 ) {
-    HOME("home", "Home", Icons.Outlined.Home),
-    SUBJECTS("subjects", "Subjects", Icons.Outlined.AutoStories),
-    PRACTICE("practice", "Practice", Icons.Outlined.Quiz),
-    PAPERS("papers", "Papers", Icons.Outlined.Description),
-    PROFILE("profile", "Profile", Icons.Outlined.Person)
+    HOME("home", "Home", Icons.Filled.Home, Icons.Outlined.Home),
+    LEARN("subjects", "Learn", Icons.Filled.MenuBook, Icons.Outlined.MenuBook),
+    PRACTICE("practice", "Practice", Icons.Filled.Quiz, Icons.Outlined.Quiz),
+    PROGRESS("smart_insights", "Progress", Icons.Filled.Insights, Icons.Outlined.Insights),
+    PROFILE("profile", "Profile", Icons.Filled.Person, Icons.Outlined.Person)
 }
 
 @Composable
@@ -38,9 +48,9 @@ fun ImtihanBottomNavBar(
 ) {
     val colors = LocalImtihanColors.current
     Column {
-        HorizontalDivider(thickness = 1.dp, color = colors.cardBorder.copy(alpha = 0.45f))
+        HorizontalDivider(thickness = 1.dp, color = colors.cardBorder)
         NavigationBar(
-            containerColor = colors.canvasDeep.copy(alpha = 0.96f),
+            containerColor = colors.cardSurface,
             contentColor = colors.textPrimary,
             tonalElevation = 0.dp
         ) {
@@ -50,21 +60,26 @@ fun ImtihanBottomNavBar(
                     selected = selected,
                     onClick = { onSelectTab(tab) },
                     icon = {
-                        Icon(imageVector = tab.icon, contentDescription = tab.label)
+                        Icon(
+                            imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
+                            contentDescription = tab.label
+                        )
                     },
                     label = {
                         Text(
                             text = tab.label,
                             style = MaterialTheme.typography.labelSmall,
-                            maxLines = 1
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = colors.cyanPulse,
-                        selectedTextColor = colors.cyanPulse,
+                        selectedIconColor = colors.accentBlue,
+                        selectedTextColor = colors.accentBlue,
                         unselectedIconColor = colors.textSecondary,
                         unselectedTextColor = colors.textSecondary,
-                        indicatorColor = colors.cardElevated
+                        indicatorColor = colors.accentBlue.copy(alpha = if (colors.isDark) 0.16f else 0.12f)
                     )
                 )
             }

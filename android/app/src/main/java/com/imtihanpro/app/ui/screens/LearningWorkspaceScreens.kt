@@ -446,6 +446,7 @@ private fun ReusableNotesScaffold(
     val colors = LocalImtihanColors.current
     var fontScale by remember { mutableFloatStateOf(1f) }
     var nightBeforeOnly by remember { mutableStateOf(false) }
+    var blockFocusMode by remember { mutableStateOf("ALL") } // ALL | FORMULAS | DIAGRAMS
     val isUrdu = languageCode.equals("Urdu", ignoreCase = true)
     val isPaperContrast = readerHighContrastMode == "PAPER"
     val listState = rememberLazyListState()
@@ -627,6 +628,26 @@ private fun ReusableNotesScaffold(
                         )
                     }
                 }
+
+                listOf("FORMULAS" to "Formulas", "DIAGRAMS" to "Diagrams").forEach { (modeKey, modeLabel) ->
+                    val active = blockFocusMode == modeKey
+                    Surface(
+                        onClick = {
+                            feedback?.tap()
+                            blockFocusMode = if (active) "ALL" else modeKey
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (active) colors.accentBlue else colors.cardSurface,
+                        border = BorderStroke(1.dp, if (active) colors.accentBlue else colors.cardBorder)
+                    ) {
+                        Text(
+                            text = modeLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (active) Color.White else colors.textPrimary,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+                }
             }
 
             LazyColumn(
@@ -679,13 +700,29 @@ private fun ReusableNotesScaffold(
                     is UiResourceState.Error -> item { ImtihanErrorView(blocksState.message, onRetry = {}) }
                     is UiResourceState.Empty -> item { ImtihanEmptyView(blocksState.title, blocksState.description) }
                     is UiResourceState.Success -> {
-                        itemsIndexed(blocksState.data, key = { _, b -> b.id }) { _, block ->
-                            ContentBlockRenderer(
-                                blocks = listOf(block),
-                                fontScaleMultiplier = fontScale,
-                                nightBeforeOnly = nightBeforeOnly,
-                                onFormulaCopied = { feedback?.tap() }
-                            )
+                        val filteredBlocks = when (blockFocusMode) {
+                            "FORMULAS" -> blocksState.data.filter {
+                                it is ContentBlockUi.MathExpression || it is ContentBlockUi.ImportantDefinition
+                            }
+                            "DIAGRAMS" -> blocksState.data.filter { it is ContentBlockUi.Diagram }
+                            else -> blocksState.data
+                        }
+                        if (filteredBlocks.isEmpty()) {
+                            item {
+                                ImtihanEmptyView(
+                                    title = "No ${blockFocusMode.lowercase()} in this chapter",
+                                    description = "Switch back to All Notes to inspect the full chapter content."
+                                )
+                            }
+                        } else {
+                            itemsIndexed(filteredBlocks, key = { _, b -> b.id }) { _, block ->
+                                ContentBlockRenderer(
+                                    blocks = listOf(block),
+                                    fontScaleMultiplier = fontScale,
+                                    nightBeforeOnly = nightBeforeOnly && blockFocusMode == "ALL",
+                                    onFormulaCopied = { feedback?.tap() }
+                                )
+                            }
                         }
                     }
                 }

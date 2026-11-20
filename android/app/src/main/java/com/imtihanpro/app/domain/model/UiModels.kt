@@ -6,11 +6,16 @@ enum class BoardOption(val code: String, val displayName: String, val isActiveIn
     PUNJAB("PUNJAB", "Punjab Board (Planned)", false)
 }
 
-enum class ClassLevelOption(val level: Int, val displayLabel: String, val hasSeedContent: Boolean) {
-    CLASS_9(9, "Class 9", true),
-    CLASS_10(10, "Class 10", true),
-    CLASS_11(11, "Class 11", false),
-    CLASS_12(12, "Class 12", false)
+enum class ClassLevelOption(
+    val level: Int,
+    val displayLabel: String,
+    val hasSeedContent: Boolean,
+    val isAvailableInCurrentRelease: Boolean
+) {
+    CLASS_9(9, "Class 9", true, false),
+    CLASS_10(10, "Class 10", true, false),
+    CLASS_11(11, "Class 11", true, true),
+    CLASS_12(12, "Class 12", false, false)
 }
 
 enum class ChapterProgressStatus {
@@ -119,8 +124,8 @@ data class McqQuestionUi(
     val chapterId: String,
     val question: String,
     val options: List<McqOptionUi>,
-    val correctOptionId: String,
-    val explanation: String,
+    val correctOptionId: String? = null,
+    val explanation: String? = null,
     val subjectId: String = "",
     val difficulty: String = "medium",
     val topicTitle: String = "Core Concepts",
@@ -157,7 +162,7 @@ data class QuizResultUi(
 data class QuizReviewItemUi(
     val question: String,
     val selectedOptionId: String?,
-    val correctOptionId: String,
+    val correctOptionId: String?,
     val explanation: String,
     val isCorrect: Boolean,
     val mcqId: String = "",
@@ -273,7 +278,7 @@ data class StudentProfileUi(
     val overallProgressPercent: Int,
     val dailyGoalPercent: Int,
     val selectedSubBoard: String = "PESHAWAR",
-    val studyGroup: String = "SCIENCE_BIOLOGY",
+    val studyGroup: String = "PRE_MEDICAL",
     val xpTotal: Int = 0,
     val currentStreakDays: Int = 0,
     val dailyTargetMinutes: Int = 45,

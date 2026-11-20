@@ -58,7 +58,7 @@ npx --prefix backend wrangler whoami
 `backend/wrangler.toml` is pre-bound to your existing infrastructure (do **not** recreate these resources):
 
 - **Cloudflare Worker Name**: `imtihan-pro-api`
-- **Cloudflare D1 Database**: `imtihan-pro-db` (`database_id = "079128c1-203b-477b-8c4b-d6b34daf8bbe"`)
+- **Cloudflare D1 Database**: `imtihan-pro-db` (`database_id = "b02fce90-8596-49e0-a79b-6ae3a427fff0"`)
 - **Backblaze B2 Bucket**: `imtihan-pro-assets` (`B2_BUCKET_ID = "1bdf9ec6cd50dbdfad180110"`)
 - **Backblaze B2 S3 Endpoint**: `https://s3.eu-central-003.backblazeb2.com` (`B2_REGION = "eu-central-003"`)
 
@@ -105,13 +105,15 @@ npx wrangler secret put GEMINI_API_KEY
 
 ---
 
-## 5. Applying D1 Database Migrations (`0001`–`0004`) & KPK Seed
+## 5. Applying D1 Database Migrations (`0001`–`0006`) & Class 11 KPK Seed
 
 All migrations live in `backend/migrations/`:
 - `0001_initial_schema.sql`: Core schema (16 tables)
 - `0002_seed_kpk_sample.sql`: Idempotent KPK starter seed
-- `0003_stage3_to_stage8.sql`: Class 9 KPK starter curriculum, BISE sub-boards, study groups, exam patterns, flashcards, mistakes, bookmarks, study planner, streaks/achievements, and feedback tables
+- `0003_stage3_to_stage8.sql`: KPK BISE sub-boards, study groups, exam patterns, flashcards, mistakes, bookmarks, study planner, streaks/achievements, and feedback tables
 - `0004_capacity_and_indexes.sql`: 15 composite D1 indexes, `daily_usage_metrics`, `ai_tutor_cache`, `ai_student_daily_usage`, and configurable `capacity_policy` thresholds
+- `0005_flagship_bilingual_pairing.sql`: Bilingual Urdu fields, BISE pairing schemes, chapter weightage, and offline pack metadata
+- `0006_class11_kpk_production.sql`: Class 11 KPK (HSSC-I) production subjects (`PHY-11`, `CHM-11`, `BIO-11`, `MTH-11`, `CS-11`, `ENG-11`, `URD-11`, `ISL-11`, `ECO-11`, `ACC-11`), `is_public_available` flags, content provenance columns, and `exam_sessions` server-side answer key protection
 
 ### Local D1 (for `wrangler dev` testing on laptop)
 ```bash
@@ -216,12 +218,12 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 
 ---
 
-## 11. End-to-End Physical Phone Verification Checklist (Stages 1–8)
+## 11. End-to-End Physical Phone Verification Checklist (Class 11 KPK v1.0)
 
-1. **Class 9 KPK Guest-First Onboarding**: Open Imtihan Pro on the phone, select **Class 9**, a **KPK BISE Sub-Board** (e.g., **BISE Peshawar**), **Study Group** (`Science (Biology)` or `Science (Computer)`), and **Medium** (`English` / `Urdu`), then tap **Continue as Guest** -> Home Dashboard loads immediately with zero login wall.
+1. **Class 11 KPK Guest-First Onboarding**: Open Imtihan Pro on the phone, select **Class 11 (HSSC-I)**, a **KPK BISE Sub-Board** (e.g., **BISE Peshawar**), **Study Group** (`PRE_MEDICAL`, `PRE_ENGINEERING`, `ICS`, `FA`, `ICOM`), and **Medium** (`English` / `Urdu`), then tap **Continue as Guest** -> Home Dashboard loads immediately with zero login wall.
 2. **Real Home Metrics & Multi-Entity Search**: Verify Home Dashboard displays real computed progress, streak days, and daily study bar chart (never hardcoded scores), and search across subjects/chapters/PDFs.
-3. **Notes Reader, Bookmarks & Worked Examples**: Open **Subjects -> Physics (Class 9) -> Chapter 1 (Physical Quantities and Measurement)** -> verify Detailed Notes, Worked Examples, Solved Questions, Chapter Bookmark toggle, and offline reading via Room.
-4. **Mock Exams, Question Palette & Zero Ads**: Open **Practice -> Start KPK Board Mock / Chapter Quiz** -> verify timed countdown, Question Palette jump, negative marking badge, subjective Section B/C preview, **zero ads** inside quiz/reader, and Topic Accuracy Breakdown on results.
+3. **Notes Reader, Bookmarks & Worked Examples**: Open **Subjects -> Physics (HSSC-I) -> Chapter 1 (Measurements)** -> verify Detailed Notes, Revision Notes, Solved Questions, Urdu toggle, and offline reading via Room.
+4. **Mock Exams, Server Grading & Zero Ads**: Open **Practice -> Start KPK Board Mock / Chapter Quiz** -> verify timed countdown, Question Palette jump, negative marking badge, subjective Section B/C preview, authoritative server grading on submit, and **zero ads** inside quiz/reader.
 5. **Smart Insights, Mistake Master & SM-2 Flashcards**: Verify **Smart Insights** displays `"Not enough data yet"` when `< 2` quizzes exist and calculates real readiness + weak chapters once `>= 2` quizzes are completed; test **Mistake Master** retry and **Flashcards** SM-2 intervals.
 6. **Study Planner, Motivation & Opt-In Leaderboard**: Set daily study target + board countdown in **Study Planner**, verify XP & streak updates in **Motivation**, and confirm leaderboard remains private unless explicitly opted in.
 7. **Server-Side AI Tutor & Student Feedback**: Ask a chapter-grounded question in **AI Tutor** (verifying `503 TUTOR_UNAVAILABLE` if `GEMINI_API_KEY` isn't set, or a grounded answer when configured) and submit an issue in **Report Issue** -> verify it appears under **Admin Console -> Student Feedback**.
@@ -250,9 +252,9 @@ curl -X POST http://localhost:8787/v1/agent/submissions \
     "agentName": "curriculum-drafter",
     "modelIdentifier": "gemini-2.5-pro",
     "boardCode": "KPK",
-    "targetClass": 9,
-    "subjectId": "sub_kpk9_phy",
-    "chapterTitle": "Kinematics",
+    "targetClass": 11,
+    "subjectId": "sub_kpk11_phy",
+    "chapterTitle": "Measurements",
     "submissionType": "detailed_notes",
     "blocks": [
       { "id": "b1", "orderIndex": 1, "type": "heading", "sectionCode": "2.1", "text": "Rest and Motion", "isSubheading": false },

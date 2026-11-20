@@ -805,9 +805,10 @@ fun McqPracticeScreen(
 @Composable
 fun QuizResultsScreen(
     result: QuizResultUi?,
+    isSubmitting: Boolean = false,
     studentName: String = "Guest Learner",
     boardLabel: String = "KPK",
-    classLevel: Int = 9,
+    classLevel: Int = 11,
     subjectName: String = "KPK Subject",
     streakDays: Int = 0,
     xpTotal: Int = 0,
@@ -833,22 +834,29 @@ fun QuizResultsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            item {
-                Spacer(modifier = Modifier.height(10.dp))
-                AnimatedProgressRing(
-                    progress = (result?.percentage ?: 0) / 100f,
-                    size = 112.dp,
-                    strokeWidth = 9.dp,
-                    accentColor = if (result?.passed == true) colors.success else colors.warningGold,
-                    centerLabel = "${result?.percentage ?: 0}%",
-                    centerCaption = if (result?.passed == true) "PASSED" else "REVIEW"
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = if (result?.passed == true) "Quiz Completed · Passed!" else "Quiz Completed",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = colors.textPrimary
-                )
+            if (result == null && isSubmitting) {
+                item {
+                    Spacer(modifier = Modifier.height(64.dp))
+                    ImtihanLoadingView(message = "Grading answers with official KPK board key...")
+                }
+            } else {
+                item {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    AnimatedProgressRing(
+                        progress = (result?.percentage ?: 0) / 100f,
+                        size = 112.dp,
+                        strokeWidth = 9.dp,
+                        accentColor = if (result?.passed == true) colors.success else colors.warningGold,
+                        centerLabel = "${result?.percentage ?: 0}%",
+                        centerCaption = if (result?.passed == true) "PASSED" else "REVIEW"
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = if (result?.passed == true) "Quiz Completed · Passed!" else "Quiz Completed",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = colors.textPrimary
+                    )
+                }
             }
 
             if (result != null) {
@@ -989,7 +997,7 @@ fun QuizResultsScreen(
                             Text(item.question, style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Selected: ${item.selectedOptionId ?: "Skipped"} · Correct: ${item.correctOptionId}",
+                                text = "Selected: ${item.selectedOptionId ?: "Skipped"} · Correct: ${item.correctOptionId ?: "Graded"}",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = if (item.isCorrect) colors.success else colors.danger
                             )

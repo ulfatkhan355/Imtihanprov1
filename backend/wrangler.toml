@@ -8,13 +8,13 @@ B2_BUCKET_NAME = "imtihan-pro-assets"
 B2_BUCKET_ID = "1bdf9ec6cd50dbdfad180110"
 B2_ENDPOINT = "https://s3.eu-central-003.backblazeb2.com"
 B2_REGION = "eu-central-003"
-AI_PROVIDER_MODEL = "gemini-2.5-flash"
+AI_PROVIDER_MODEL = "gemini-4-hydrogen"
 ALLOWED_CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "imtihan-pro-db"
-database_id = "079128c1-203b-477b-8c4b-d6b34daf8bbe"
+database_id = "b02fce90-8596-49e0-a79b-6ae3a427fff0"
 migrations_dir = "migrations"
 
 # Required secrets — set via `wrangler secret put <NAME>` before production deploy,

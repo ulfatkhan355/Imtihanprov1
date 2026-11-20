@@ -8,6 +8,7 @@ import type {
   AdminLoginRequest,
   AdminMcqWritePayload,
   AdminSubjectWritePayload,
+  AdminUserProfile,
   ApiAiAgentSubmission,
   ApiChapter,
   ApiEducationalContent,
@@ -782,6 +783,20 @@ export class CloudflareAdminApiClient {
     return this.request(API_ENDPOINTS.adminCapacityPolicy, {
       method: 'PUT',
       body: JSON.stringify(policy),
+    });
+  }
+
+  fetchAdminUsers(): Promise<AdminUserProfile[]> {
+    return this.request(API_ENDPOINTS.adminUsers);
+  }
+
+  updateAdminUserRole(
+    adminId: string,
+    payload: { role?: AdminUserProfile['role']; isActive?: boolean }
+  ): Promise<{ id: string; updated: boolean }> {
+    return this.request(API_ENDPOINTS.adminUserRole(adminId), {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
     });
   }
 }

@@ -1418,6 +1418,71 @@ export async function handleAdminRoutes(
     return jsonEnvelope(analytics, env, 200, headers);
   }
 
+  if (method === 'GET' && path === '/v1/admin/users') {
+    const rows = await env.DB.prepare(
+      'SELECT id, email, display_name, role, is_active, created_at_iso, last_login_at_iso FROM admin_users ORDER BY created_at_iso ASC'
+    ).all<{
+      id: string;
+      email: string;
+      display_name: string;
+      role: 'reviewer' | 'admin' | 'super_admin';
+      is_active: number;
+      created_at_iso: string;
+      last_login_at_iso: string | null;
+    }>();
+    return jsonEnvelope(
+      rows.results.map((r) => ({
+        id: r.id,
+        email: r.email,
+        displayName: r.display_name,
+        role: r.role,
+        isActive: r.is_active === 1,
+        createdAtIso: r.created_at_iso,
+        lastLoginAtIso: r.last_login_at_iso,
+      })),
+      env,
+      200,
+      headers
+    );
+  }
+
+  const adminUserRoleMatch = path.match(/^\/v1\/admin\/users\/([^/]+)\/role$/);
+  if (method === 'PATCH' && adminUserRoleMatch) {
+    if (admin.role !== 'super_admin') {
+      throw new HttpError(403, 'SUPER_ADMIN_REQUIRED', 'Only super_admin can modify admin roles.');
+    }
+    const targetAdminId = decodeURIComponent(adminUserRoleMatch[1]);
+    const body = (await request.json().catch(() => null)) as {
+      role?: 'reviewer' | 'admin' | 'super_admin';
+      isActive?: boolean;
+    } | null;
+    if (!body || (body.role && !['reviewer', 'admin', 'super_admin'].includes(body.role))) {
+      throw new HttpError(400, 'INVALID_ADMIN_ROLE', 'Valid role (reviewer, admin, super_admin) is required.');
+    }
+    const res = await env.DB.prepare(
+      `UPDATE admin_users SET
+        role = COALESCE(?, role),
+        is_active = COALESCE(?, is_active)
+       WHERE id = ?`
+    )
+      .bind(
+        body.role ?? null,
+        typeof body.isActive === 'boolean' ? (body.isActive ? 1 : 0) : null,
+        targetAdminId
+      )
+      .run();
+    if ((res.meta.changes ?? 0) === 0) {
+      throw new HttpError(404, 'ADMIN_USER_NOT_FOUND', `Admin user ${targetAdminId} not found.`);
+    }
+    await appendAuditLog(env.DB, {
+      actorAdminId: admin.id,
+      actorName: admin.displayName,
+      action: `Updated admin role (${body.role ?? 'status'})`,
+      targetEntity: targetAdminId,
+    });
+    return jsonEnvelope({ id: targetAdminId, updated: true }, env, 200, headers);
+  }
+
   if (method === 'GET' && path === '/v1/admin/infrastructure') {
     const start = Date.now();
     let d1Connected = false;
@@ -1444,7 +1509,7 @@ export async function handleAdminRoutes(
       apiVersion: env.API_VERSION || '2.0.0',
       d1: {
         databaseName: 'imtihan-pro-db',
-        databaseId: '079128c1-203b-477b-8c4b-d6b34daf8bbe',
+        databaseId: 'b02fce90-8596-49e0-a79b-6ae3a427fff0',
         connected: d1Connected,
         latencyMs: d1Connected ? latencyMs : null,
         tableCount,

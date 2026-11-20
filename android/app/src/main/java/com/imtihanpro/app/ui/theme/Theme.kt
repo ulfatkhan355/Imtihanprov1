@@ -21,6 +21,7 @@ data class ImtihanExtendedColors(
     val textSecondary: Color,
     val textMuted: Color,
     val accentBlue: Color,
+    val accentPressed: Color,
     val success: Color,
     val warningGold: Color,
     val danger: Color,
@@ -40,11 +41,12 @@ private val DarkExtended = ImtihanExtendedColors(
     textSecondary = SilverTextSecondary,
     textMuted = SilverTextMuted,
     accentBlue = ElectricBluePrimary,
+    accentPressed = RoyalBluePressed,
     success = EmeraldSuccess,
     warningGold = AmberGold,
     danger = CrimsonAlert,
     isDark = true,
-    cyanPulse = SkySilverAccent,
+    cyanPulse = ElectricBluePrimary,
     glassTopSheen = GlassSpecularTop,
 )
 
@@ -54,24 +56,25 @@ private val LightExtended = ImtihanExtendedColors(
     cardSurface = LightSurfaceCard,
     cardElevated = LightSurfaceElevated,
     cardBorder = LightSilverBorder,
-    glassHighlight = Color(0x141D4ED8),
+    glassHighlight = Color(0x14416BCE),
     textPrimary = LightInkPrimary,
     textSecondary = LightInkSecondary,
-    textMuted = Color(0xFF64748B),
+    textMuted = LightInkSecondary,
     accentBlue = LightBluePrimary,
-    success = Color(0xFF16A34A),
-    warningGold = Color(0xFFD97706),
-    danger = Color(0xFFDC2626),
+    accentPressed = LightBluePressed,
+    success = EmeraldSuccess,
+    warningGold = AmberGold,
+    danger = CrimsonAlert,
     isDark = false,
     cyanPulse = LightBluePrimary,
     glassTopSheen = Color(0xAAFFFFFF),
 )
 
-val LocalImtihanColors = staticCompositionLocalOf { DarkExtended }
+val LocalImtihanColors = staticCompositionLocalOf { LightExtended }
 
 private val DarkColorScheme = darkColorScheme(
     primary = ElectricBluePrimary,
-    onPrimary = Color.White,
+    onPrimary = Color(0xFF0A1426),
     secondary = SkySilverAccent,
     background = NavyCanvasDeep,
     onBackground = SilverTextPrimary,
@@ -86,7 +89,7 @@ private val DarkColorScheme = darkColorScheme(
 private val LightColorScheme = lightColorScheme(
     primary = LightBluePrimary,
     onPrimary = Color.White,
-    secondary = ElectricBluePrimary,
+    secondary = LightBluePressed,
     background = LightCanvas,
     onBackground = LightInkPrimary,
     surface = LightSurfaceCard,
@@ -94,12 +97,12 @@ private val LightColorScheme = lightColorScheme(
     surfaceVariant = LightSurfaceElevated,
     onSurfaceVariant = LightInkSecondary,
     outline = LightSilverBorder,
-    error = Color(0xFFDC2626)
+    error = CrimsonAlert
 )
 
 @Composable
 fun ImtihanProTheme(
-    darkTheme: Boolean = true,
+    darkTheme: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val extended = if (darkTheme) DarkExtended else LightExtended
@@ -109,6 +112,7 @@ fun ImtihanProTheme(
         MaterialTheme(
             colorScheme = scheme,
             typography = ImtihanTypography,
+            shapes = ImtihanShapes,
             content = content
         )
     }

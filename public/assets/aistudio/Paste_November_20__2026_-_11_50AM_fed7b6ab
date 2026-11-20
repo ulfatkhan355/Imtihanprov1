@@ -1,0 +1,1756 @@
+# IMTIHAN PRO
+# ULTIMATE FRONTEND MASTER BUILD SPECIFICATION
+
+Version: 2.0
+Platform: Android
+Framework: Kotlin + Jetpack Compose
+Design Direction: Apple-inspired premium educational experience
+Target: Production-quality application
+
+==================================================
+PART 1. YOUR ROLE AND RESPONSIBILITIES
+==================================================
+
+You are an elite multidisciplinary Android product development team.
+
+You must operate as:
+
+1. Principal Android architect.
+2. Senior Kotlin developer.
+3. Jetpack Compose specialist.
+4. Professional UI/UX designer.
+5. Product interaction designer.
+6. Animation engineer.
+7. Backend integration engineer.
+8. PDF rendering specialist.
+9. Database engineer.
+10. Accessibility specialist.
+11. Performance engineer.
+12. Software testing engineer.
+
+Your responsibility is to build Imtihan Pro as a complete, production-oriented Android application.
+
+This is not a UI demonstration.
+
+This is not a design prototype.
+
+This is not a collection of static screens.
+
+Build a real application with working functionality, reliable data handling, proper architecture, polished interactions and exceptional visual quality.
+
+Avoid AI-generated coding patterns, rushed implementations, inconsistent layouts and superficial functionality.
+
+Do not generate code simply to make the project look complete.
+
+Every implementation must have a clear purpose.
+
+==================================================
+PART 2. PRODUCT IDENTITY
+==================================================
+
+Application: Imtihan Pro
+
+Tagline: Study. Practice. Excel.
+
+Target users:
+Pakistani students in Classes 9, 10, 11 and 12.
+
+Initial educational focus:
+KPK Boards.
+
+Supported boards:
+- Peshawar.
+- Mardan.
+- Swat.
+- Abbottabad.
+- Kohat.
+- Bannu.
+- D.I. Khan.
+- Malakand.
+
+Supported languages:
+- English.
+- Urdu.
+
+Supported groups:
+- Science.
+- Arts and Humanities.
+- Pre-Medical.
+- Pre-Engineering.
+- Computer Science.
+- ICS.
+- FA.
+- I.Com.
+
+Account experience:
+- Guest-first.
+- No mandatory registration.
+- Optional Google authentication when supported.
+- Local progress persistence.
+- Account synchronization when authenticated.
+
+The application must be useful for students with limited internet access and budget Android devices.
+
+==================================================
+PART 3. DESIGN REFERENCE AND VISUAL DIRECTION
+==================================================
+
+IMPORTANT:
+
+Use the attached Imtihan Pro reference image as the primary visual inspiration.
+
+Study its:
+- Layout.
+- Screen hierarchy.
+- Navigation.
+- Colors.
+- Card arrangements.
+- Typography.
+- Component proportions.
+- Overall product identity.
+
+Improve upon it.
+
+Do not blindly copy the image.
+
+Create a consistent, more refined, production-quality implementation.
+
+DESIGN DIRECTION:
+
+Apple-inspired modern minimalism.
+
+Combine:
+- iOS-level visual discipline.
+- Modern Android Material 3 components.
+- Professional educational software.
+- Premium reading interfaces.
+- Subtle glass and layered surfaces.
+- Carefully controlled visual depth.
+
+The application should feel expensive, even though it is free.
+
+VISUAL CHARACTERISTICS:
+
+- Clean layouts.
+- Generous whitespace.
+- Precise alignment.
+- Sophisticated typography.
+- Elegant cards.
+- Subtle borders.
+- Soft shadows.
+- Purposeful gradients.
+- Consistent iconography.
+- Beautiful charts.
+- Refined animations.
+
+Avoid:
+- Generic AI dashboard designs.
+- Excessive gradients.
+- Random colors.
+- Excessive glassmorphism.
+- Giant unnecessary cards.
+- Inconsistent spacing.
+- Overloaded screens.
+- Excessive animations.
+- Fake functionality.
+- Decorative elements without purpose.
+
+==================================================
+PART 4. COMPLETE DESIGN SYSTEM
+==================================================
+
+Create a central reusable design system.
+
+COLOR IDENTITY
+
+Primary color:
+Silver Blue.
+
+Light theme:
+
+Primary: #416BCE
+Primary Dark: #3156A8
+Background: #F5F7FB
+Surface: #FFFFFF
+Secondary Surface: #EEF2F8
+Primary Text: #172033
+Secondary Text: #69758A
+Border: #E4E9F1
+Success: #229B70
+Warning: #D99A36
+Error: #D9535D
+
+Dark theme:
+
+Background: #0D1422
+Surface: #151F30
+Elevated Surface: #1B2940
+Primary: #83A8FF
+Primary Text: #F3F6FC
+Secondary Text: #A0AEC3
+Border: #29374C
+
+Use semantic colors.
+
+Create design tokens for:
+- Colors.
+- Typography.
+- Spacing.
+- Shapes.
+- Elevation.
+- Animation durations.
+- Icon sizes.
+- Component dimensions.
+
+TYPOGRAPHY
+
+Use Inter or an appropriate high-quality font.
+
+Support proper Urdu typography.
+
+Use readable text sizes.
+
+The reading experience must prioritize comfort over visual decoration.
+
+SPACING
+
+Use a consistent 8dp-based spacing system.
+
+COMPONENT SHAPES
+
+Buttons: 12dp.
+Cards: 16dp.
+Large panels: 20dp.
+Bottom sheets: 24dp.
+
+Support both light and dark themes across every screen.
+
+Do not implement theme switching only on the dashboard.
+
+==================================================
+PART 5. TECHNICAL ARCHITECTURE
+==================================================
+
+Technology requirements:
+
+- Kotlin.
+- Jetpack Compose.
+- Material 3.
+- Navigation Compose.
+- MVVM.
+- Kotlin Coroutines.
+- StateFlow.
+- Room.
+- DataStore.
+- Hilt.
+- Retrofit or Ktor, depending on existing architecture.
+- Kotlin Serialization.
+- Coil for image loading.
+
+Use appropriate maintained Android libraries.
+
+Before adding dependencies, inspect the existing project.
+
+Avoid unnecessary dependencies.
+
+ARCHITECTURE:
+
+Presentation:
+Compose screens and reusable components.
+
+Domain:
+Business logic and use cases.
+
+Data:
+Repositories, API clients, local database and models.
+
+Core:
+Navigation, theme, utilities, error handling and shared components.
+
+Implement:
+- Single source of truth for application state.
+- Repository pattern.
+- Dependency injection.
+- Structured concurrency.
+- Lifecycle-aware state collection.
+- Proper cancellation.
+- Error propagation.
+- Offline caching.
+- Consistent data models.
+
+Do not put business logic inside composables.
+
+Do not use giant files containing hundreds of unrelated functions.
+
+Keep modules and features maintainable.
+
+==================================================
+PART 6. COMPLETE APPLICATION NAVIGATION
+==================================================
+
+Use five primary bottom navigation destinations.
+
+1. Home.
+2. Learn.
+3. Practice.
+4. Progress.
+5. Profile.
+
+Implement nested navigation for individual features.
+
+Navigation requirements:
+
+- Preserve tab state.
+- Correct back-stack behavior.
+- Restore previous screen positions.
+- Avoid duplicate destinations.
+- Support deep links where useful.
+- Handle navigation during loading.
+- Prevent accidental repeated navigation.
+- Support Android back gestures.
+
+Every screen must have a clear navigation path.
+
+==================================================
+PART 7. ONBOARDING AND STUDENT SETUP
+==================================================
+
+Create a premium onboarding experience.
+
+Screens:
+
+1. Splash screen.
+2. Welcome screen.
+3. Class selection.
+4. Board selection.
+5. Group selection.
+6. Language selection.
+7. Study preferences.
+8. Notification preferences.
+9. Start learning.
+
+Features:
+
+- Smooth page transitions.
+- Progress indicators.
+- Selection animations.
+- Persistent preferences.
+- Skip optional steps.
+- Guest access.
+- Edit preferences later.
+
+Never force students to create an account.
+
+==================================================
+PART 8. HOME DASHBOARD
+==================================================
+
+Build an intelligent, personalized dashboard.
+
+HEADER:
+- Greeting.
+- Student profile.
+- Notification center.
+- Class and board selector.
+
+STUDY OVERVIEW:
+- Today's study duration.
+- Questions attempted.
+- Accuracy.
+- Study streak.
+
+CONTINUE LEARNING:
+- Recently opened subject.
+- Last opened chapter.
+- Reading progress.
+- Continue button.
+
+QUICK ACTIONS:
+- MCQs.
+- Chapter tests.
+- Past papers.
+- Textbooks.
+- Notes.
+- Flashcards.
+
+DAILY CHALLENGE:
+- Daily question.
+- Difficulty.
+- Reward indicator.
+- Start challenge.
+
+SUBJECT OVERVIEW:
+- Subject cards.
+- Chapter progress.
+- Completed lessons.
+- Remaining chapters.
+
+RECENT ACTIVITY:
+- Recently studied chapters.
+- Recent tests.
+- Downloaded material.
+
+SMART RECOMMENDATIONS:
+
+Suggest:
+- Weak chapters.
+- Unfinished lessons.
+- Revision activities.
+- Upcoming study targets.
+
+Never overwhelm the dashboard.
+
+Prioritize the next useful action.
+
+==================================================
+PART 9. DIGITAL TEXTBOOK AND PDF READER
+==================================================
+
+THIS IS ONE OF THE MOST IMPORTANT FEATURES.
+
+Imtihan Pro must provide an exceptional digital reading experience.
+
+The PDF reader should feel like a professional textbook application.
+
+Students must be able to read original textbooks, past papers, notes and other study materials comfortably.
+
+PDF VIEWER REQUIREMENTS:
+
+Implement a dedicated PDF viewing system.
+
+Use a reliable Android PDF rendering solution.
+
+Evaluate Android PdfRenderer and maintained PDF libraries based on performance, compatibility and functionality.
+
+Do not build a fake PDF viewer using ordinary images.
+
+CORE READING FEATURES:
+
+1. Smooth vertical scrolling.
+2. Horizontal page navigation where appropriate.
+3. Page number indicator.
+4. Jump to specific page.
+5. Zoom in and zoom out.
+6. Pinch-to-zoom.
+7. Fit width.
+8. Fit page.
+9. Continuous scrolling.
+10. Single-page mode.
+11. Double-page mode on suitable larger screens.
+12. Text selection when the PDF supports it.
+13. Search inside PDF when text extraction is available.
+14. Bookmarks.
+15. Recent reading history.
+16. Reading progress persistence.
+17. Restore last reading position.
+18. Full-screen reading mode.
+19. Screen brightness control.
+20. Share document.
+21. Download document.
+22. Delete downloaded document.
+23. Open downloaded document offline.
+
+PDF PRESENTATION:
+
+Create a professional reading toolbar.
+
+Top toolbar:
+- Back button.
+- Document title.
+- Search.
+- Bookmark.
+- More options.
+
+Reading area:
+- Proper page background.
+- High-quality rendering.
+- Correct page aspect ratio.
+- Smooth scrolling.
+- Clean margins.
+- No unnecessary visual clutter.
+
+Bottom controls:
+- Previous page.
+- Page number.
+- Next page.
+- Zoom controls.
+
+Allow the toolbar to hide automatically while reading.
+
+READING APPEARANCE:
+
+Provide:
+- Light reading background.
+- Dark application interface.
+- Optional night reading mode.
+- Warm reading background.
+- Brightness control.
+
+Important:
+
+Dark mode must not damage original PDF colors or diagrams.
+
+Use a reading overlay or appropriate viewing settings instead of blindly inverting every document.
+
+RENDERING QUALITY:
+
+Prioritize:
+- Sharp text.
+- High-resolution diagrams.
+- Correct image scaling.
+- Mathematical symbols.
+- Tables.
+- Superscripts.
+- Subscripts.
+- Scientific notation.
+- Chemical formulas.
+- Page rotation.
+- Mixed page sizes.
+
+Avoid blurry rendering.
+
+Use page caching and efficient bitmap memory management.
+
+Render visible pages at suitable resolution.
+
+Do not render every page at maximum resolution simultaneously.
+
+Handle large PDFs without freezing the application.
+
+Support cancellation of rendering operations.
+
+Provide graceful recovery from corrupt or unsupported PDFs.
+
+==================================================
+PART 10. TEXTBOOK LIBRARY
+==================================================
+
+Create a dedicated textbook library.
+
+Organize by:
+
+Class.
+Board.
+Group.
+Subject.
+Academic year or edition.
+
+Textbook cards should display:
+
+- Cover image.
+- Book title.
+- Subject.
+- Class.
+- File size.
+- Total pages.
+- Download status.
+
+Actions:
+
+- Read online.
+- Download.
+- Resume reading.
+- Remove download.
+- Bookmark.
+
+Include:
+- Search.
+- Filters.
+- Sorting.
+- Recently opened.
+- Downloaded books.
+- Favorites.
+
+Do not display books that the backend does not actually provide.
+
+==================================================
+PART 11. STUDY MATERIAL LIBRARY
+==================================================
+
+Create a separate study material section.
+
+Material categories:
+
+1. Official textbooks.
+2. Chapter notes.
+3. Revision notes.
+4. Solved past papers.
+5. Unsolved past papers.
+6. Important questions.
+7. Guess papers, when available.
+8. Formula sheets.
+9. Practical manuals.
+10. Diagrams and charts.
+11. Model papers.
+12. Exam preparation guides.
+
+Each material should have:
+
+- Title.
+- Subject.
+- Chapter or topic.
+- Description.
+- Format.
+- File size.
+- Last updated date.
+- Language.
+- Download status.
+
+Support native reading interfaces and PDF reading where appropriate.
+
+Do not turn every study resource into a PDF.
+
+Use native interfaces for structured notes and interactive learning.
+
+Use original PDFs for official documents and materials where layout preservation matters.
+
+==================================================
+PART 12. DOWNLOAD MANAGER
+==================================================
+
+Build a proper download management system.
+
+Students must be able to download textbooks, notes, PDFs and other supported study materials.
+
+DOWNLOAD FEATURES:
+
+- Download button.
+- Download progress.
+- Percentage indicator.
+- Download speed where available.
+- Remaining size where available.
+- Pause.
+- Resume.
+- Cancel.
+- Retry.
+- Download queue.
+- Multiple downloads.
+- Duplicate download prevention.
+- Storage usage.
+- Download history.
+- Delete downloaded files.
+- Offline availability indicator.
+
+DOWNLOAD ANIMATIONS:
+
+Create polished interactions:
+
+1. Download icon changes into a progress indicator.
+2. Circular progress animation.
+3. Progress percentage updates.
+4. Completion animation.
+5. Success checkmark.
+6. Failure state.
+7. Retry animation.
+8. Smooth transitions between states.
+
+Do not animate fake progress.
+
+Display actual transfer progress.
+
+NETWORK BEHAVIOR:
+
+- Handle connection loss.
+- Retry transient failures.
+- Support resumable downloads when the server supports them.
+- Verify completed file size.
+- Validate file integrity when checksums are available.
+- Use temporary files during downloads.
+- Move files into final storage only after successful verification.
+- Avoid corrupt partial files being treated as complete downloads.
+
+Use WorkManager for suitable persistent background downloads.
+
+Respect Android storage and battery restrictions.
+
+Provide clear download failure messages.
+
+==================================================
+PART 13. NATIVE STUDY NOTES
+==================================================
+
+Build a sophisticated educational content renderer.
+
+This renderer must support structured educational content.
+
+Supported elements:
+
+- Titles.
+- Headings.
+- Subheadings.
+- Paragraphs.
+- Bullet lists.
+- Numbered lists.
+- Definitions.
+- Examples.
+- Tables.
+- Mathematical formulas.
+- Chemical equations.
+- Physics equations.
+- Diagrams.
+- Images.
+- Captions.
+- Highlighted notes.
+- Important exam tips.
+- Summary boxes.
+- Warnings.
+- Key concepts.
+- Questions and answers.
+
+MATHEMATICAL RENDERING:
+
+Support:
+
+- Fractions.
+- Square roots.
+- Powers.
+- Subscripts.
+- Superscripts.
+- Matrices.
+- Determinants.
+- Equations.
+- Greek symbols.
+- Mathematical expressions.
+
+Use a proper mathematical rendering approach such as a suitable MathJax or KaTeX-based rendering component where appropriate.
+
+Avoid rendering mathematical notation as plain unformatted text.
+
+DIAGRAMS:
+
+Support:
+- Physics diagrams.
+- Biology diagrams.
+- Chemistry structures.
+- Mathematical graphs.
+- Geometry illustrations.
+- Scientific charts.
+
+Images must maintain correct proportions.
+
+Provide zoom functionality for detailed diagrams.
+
+CONTENT READING TOOLS:
+
+- Font size adjustment.
+- Bookmark.
+- Text selection.
+- Share selected text.
+- Search.
+- Reading progress.
+- Previous and next topic.
+- Night reading.
+- Report content issue.
+
+==================================================
+PART 14. LEARNING EXPERIENCE
+==================================================
+
+Learning navigation:
+
+Class → Board → Group → Subject → Chapter → Topic.
+
+Subject screens:
+
+- Subject title.
+- Subject description.
+- Chapter count.
+- Progress.
+- Recently opened lessons.
+
+Chapter screens:
+
+- Chapter introduction.
+- Learning objectives.
+- Topic list.
+- Study notes.
+- Important definitions.
+- MCQs.
+- Short questions.
+- Long questions.
+- Diagrams.
+- Related past papers.
+
+Topic screens:
+
+- Structured content.
+- Examples.
+- Diagrams.
+- Key points.
+- Practice questions.
+- Completion tracking.
+
+Remember the student's reading position.
+
+==================================================
+PART 15. MCQ ENGINE
+==================================================
+
+Build a complete MCQ engine.
+
+Modes:
+
+- Chapter practice.
+- Subject practice.
+- Random practice.
+- Difficulty-based practice.
+- Weak-topic practice.
+- Previous mistakes.
+- Daily challenge.
+
+Difficulty:
+
+- Easy.
+- Medium.
+- Hard.
+
+Pre-test setup:
+
+- Subject.
+- Chapter.
+- Question count.
+- Difficulty.
+- Timer preference.
+
+QUESTION INTERFACE:
+
+- Question number.
+- Question text.
+- Optional diagram.
+- Four answer choices.
+- Selected answer state.
+- Question navigation.
+- Progress indicator.
+- Explanation area.
+
+INTERACTIONS:
+
+- Tap answer.
+- Change answer.
+- Next.
+- Previous.
+- Mark for review.
+- Submit.
+- Confirm submission.
+
+Provide optional instant feedback in practice mode.
+
+In examination mode, respect examination settings and do not reveal answers prematurely.
+
+RESULTS:
+
+- Total questions.
+- Correct.
+- Incorrect.
+- Unanswered.
+- Accuracy.
+- Time taken.
+- Subject performance.
+
+Allow:
+- Review all answers.
+- Retry incorrect answers.
+- Practice similar questions.
+- Save difficult questions.
+
+==================================================
+PART 16. EXAMINATION ENGINE
+==================================================
+
+Support:
+
+- Chapter tests.
+- Subject tests.
+- Full mock exams.
+
+Implement:
+
+- Instructions.
+- Countdown timer.
+- Question navigation.
+- Answer saving.
+- Mark for review.
+- Unanswered question tracking.
+- Submit confirmation.
+- Automatic submission.
+- Result calculation.
+
+Protect against:
+
+- Accidental double submission.
+- Duplicate result records.
+- Lost answers.
+- Timer inconsistencies.
+- App recreation.
+- Navigation interruptions.
+
+Persist examination state.
+
+Calculate results using a centralized, tested scoring engine.
+
+==================================================
+PART 17. PAST PAPERS
+==================================================
+
+Create a professional past-paper library.
+
+Filters:
+
+- Class.
+- Board.
+- Subject.
+- Year.
+
+Two reading experiences:
+
+A. Original PDF.
+
+B. Interactive solved paper.
+
+Interactive solved-paper features:
+
+- Original question.
+- Correct answer.
+- Detailed explanation.
+- Topic identification.
+- Relevant concept.
+- Related questions.
+- Important examination points.
+
+Support page navigation and bookmarking.
+
+==================================================
+PART 18. MISTAKE MASTER
+==================================================
+
+Build a dedicated mistake-learning system.
+
+Track:
+
+- Incorrect questions.
+- Skipped questions.
+- Difficult topics.
+- Repeated mistakes.
+- Weak chapters.
+
+Provide:
+
+- Mistake history.
+- Weak subject analysis.
+- Weak chapter analysis.
+- Repeated error detection.
+- Practice recommendations.
+- Improvement tracking.
+
+Create a personalized revision queue.
+
+==================================================
+PART 19. FLASHCARDS
+==================================================
+
+Features:
+
+- Question and answer cards.
+- Smooth flip animation.
+- Known.
+- Difficult.
+- Needs revision.
+- Previous and next.
+- Daily revision.
+- Topic-based decks.
+- Spaced repetition scheduling.
+
+Persist card progress.
+
+==================================================
+PART 20. STUDY PLANNER
+==================================================
+
+Create:
+
+- Daily study goals.
+- Weekly timetable.
+- Subject schedules.
+- Chapter targets.
+- Revision plans.
+- Calendar.
+- Reminders.
+- Completed tasks.
+- Pending tasks.
+
+Provide a simple and elegant planning interface.
+
+Allow students to modify their plans easily.
+
+==================================================
+PART 21. PROGRESS AND ANALYTICS
+==================================================
+
+Provide:
+
+- Overall accuracy.
+- Study time.
+- Questions attempted.
+- Subject performance.
+- Chapter completion.
+- Weekly activity.
+- Monthly progress.
+- Weak areas.
+- Strong areas.
+- Improvement trends.
+
+Use accurate charts.
+
+All analytics must come from real recorded activity.
+
+Never fabricate student statistics.
+
+==================================================
+PART 22. ADDITIONAL FEATURES
+==================================================
+
+Add these useful features where appropriate.
+
+1. GLOBAL SEARCH
+
+Search:
+- Subjects.
+- Chapters.
+- Notes.
+- Questions.
+- Textbooks.
+- Past papers.
+
+Support recent searches and filters.
+
+2. BOOKMARK CENTER
+
+A centralized collection of:
+- Saved notes.
+- Saved questions.
+- Saved diagrams.
+- Saved PDFs.
+- Important pages.
+
+3. RECENTLY VIEWED
+
+Restore recently opened study materials.
+
+4. FORMULA LIBRARY
+
+Subject-specific formula collections.
+
+Include:
+- Formula.
+- Meaning of symbols.
+- Units.
+- Example.
+- Related chapter.
+
+5. DIAGRAM LIBRARY
+
+Organized scientific and educational diagrams.
+
+4. IMPORTANT QUESTIONS
+
+Display important questions by subject and chapter, with clear explanations of their source and relevance.
+
+5. EXAM COUNTDOWN
+
+Allow students to set an examination date and view the remaining days.
+
+6. CONTENT FEEDBACK
+
+Allow students to report:
+- Incorrect answers.
+- Typographical errors.
+- Missing diagrams.
+- Broken PDFs.
+- Incorrect explanations.
+
+7. NOTIFICATION CENTER
+
+Provide relevant reminders:
+- Study reminders.
+- Download completion.
+- Revision reminders.
+- Planner reminders.
+
+Avoid unnecessary notifications.
+
+8. OFFLINE STUDY CENTER
+
+Show all available offline resources in one place.
+
+==================================================
+PART 23. API INTEGRATION
+==================================================
+
+The frontend must integrate correctly with the existing backend.
+
+Infrastructure:
+
+- Cloudflare Workers.
+- Cloudflare D1.
+- Backblaze B2 object storage.
+
+Do not create replacement infrastructure.
+
+Do not introduce Cloudflare R2.
+
+First inspect the existing API documentation and contracts.
+
+Never invent API endpoints or response fields.
+
+If documentation is incomplete, identify the missing contracts before implementation.
+
+API ARCHITECTURE:
+
+Create centralized API services.
+
+Use repositories to separate networking from UI.
+
+Implement:
+
+- Request handling.
+- Response parsing.
+- Authentication headers where applicable.
+- Timeouts.
+- Error mapping.
+- Cancellation.
+- Retry policies.
+- Logging.
+- Caching.
+- Pagination.
+- File downloads.
+
+ERROR HANDLING:
+
+Handle:
+
+- No internet.
+- Connection timeout.
+- Server unavailable.
+- HTTP 400.
+- HTTP 401.
+- HTTP 403.
+- HTTP 404.
+- HTTP 409.
+- HTTP 429.
+- HTTP 500.
+- Invalid JSON.
+- Missing fields.
+- Expired download links.
+- Corrupt downloads.
+
+Show understandable user-facing messages.
+
+Never expose internal server errors or sensitive information.
+
+RETRY LOGIC:
+
+Retry only appropriate transient failures.
+
+Use exponential backoff with limits.
+
+Do not retry invalid requests indefinitely.
+
+Do not repeat non-idempotent operations without appropriate protection.
+
+LOADING STATES:
+
+Every network-dependent screen must have:
+
+- Initial loading state.
+- Skeleton state where appropriate.
+- Content state.
+- Empty state.
+- Error state.
+- Retry action.
+- Offline state.
+
+Do not show a blank screen while loading.
+
+Do not block the main thread.
+
+==================================================
+PART 24. OFFLINE-FIRST EXPERIENCE
+==================================================
+
+The following should remain accessible offline when downloaded:
+
+- Textbooks.
+- Notes.
+- MCQs.
+- Flashcards.
+- Saved tests.
+- Bookmarks.
+- Study history.
+
+Implement:
+
+- Local database.
+- Cached content.
+- Offline indicators.
+- Pending synchronization.
+- Conflict handling.
+- Retry synchronization.
+
+Never claim that data has synchronized before the server confirms success.
+
+==================================================
+PART 25. ANIMATIONS AND VISUAL EFFECTS
+==================================================
+
+Create a dedicated motion design system.
+
+Use Jetpack Compose animation APIs.
+
+ANIMATION CATEGORIES:
+
+A. NAVIGATION
+
+- Fade transitions.
+- Subtle slide transitions.
+- Shared element transitions where appropriate.
+
+B. BUTTONS
+
+- Press feedback.
+- Scale response.
+- Ripple effects.
+- Loading state transitions.
+
+C. CARDS
+
+- Subtle elevation.
+- Expansion.
+- Selection effects.
+- Content transitions.
+
+D. PROGRESS
+
+- Animated progress indicators.
+- Circular progress.
+- Completion feedback.
+
+E. PDF AND DOWNLOADS
+
+- Download progress.
+- Completion checkmark.
+- Page loading placeholders.
+- Smooth toolbar appearance.
+
+F. EXAMINATIONS
+
+- Answer selection.
+- Timer transitions.
+- Submission feedback.
+- Result reveal.
+
+G. FLASHCARDS
+
+- Natural 3D-style flip.
+
+H. DASHBOARD
+
+- Staggered initial content appearance.
+- Smooth chart loading.
+- Progress updates.
+
+MOTION RULES:
+
+- Keep animations short.
+- Prefer 150ms to 300ms for common interactions.
+- Use longer durations only when the interaction needs them.
+- Avoid animation on every component.
+- Respect reduced-motion preferences.
+- Avoid expensive continuous animations.
+- Maintain 60fps as the primary target.
+
+Use haptic feedback selectively.
+
+Animations must never delay essential actions.
+
+==================================================
+PART 26. PREMIUM UI DETAILS
+==================================================
+
+Polish all small details.
+
+Examples:
+
+- Consistent system bars.
+- Edge-to-edge layouts.
+- Correct status bar contrast.
+- Keyboard-aware forms.
+- Smooth scrolling.
+- Pull-to-refresh where appropriate.
+- Swipe gestures where useful.
+- Clear focus states.
+- Subtle dividers.
+- Consistent loading skeletons.
+- Elegant dialogs.
+- Proper bottom sheets.
+- Helpful tooltips.
+- Empty-state illustrations.
+- Error recovery screens.
+- Responsive charts.
+- Image placeholders.
+- Smooth theme transitions.
+
+No screen should feel unfinished.
+
+==================================================
+PART 27. PERFORMANCE AND DEVICE OPTIMIZATION
+==================================================
+
+Target budget Android devices.
+
+Optimize for:
+
+- 4GB RAM.
+- 6GB RAM.
+- 8GB RAM.
+
+Requirements:
+
+- LazyColumn and LazyGrid.
+- Efficient image loading.
+- Proper Compose state management.
+- Stable parameters.
+- Avoid unnecessary recompositions.
+- Efficient PDF page rendering.
+- Bitmap memory management.
+- Background processing.
+- Database indexing where needed.
+- Pagination.
+- Content caching.
+
+Avoid:
+- Memory leaks.
+- Main-thread network calls.
+- Heavy animations.
+- Unnecessary polling.
+- Repeated API requests.
+- Loading entire textbooks into memory.
+
+Test on realistic device configurations.
+
+==================================================
+PART 28. ACCESSIBILITY AND LOCALIZATION
+==================================================
+
+Support:
+
+- English.
+- Urdu.
+- Right-to-left layouts.
+- Appropriate Urdu fonts.
+- Correct text alignment.
+- System font scaling.
+- Screen readers.
+- Accessible color contrast.
+- Minimum 48dp touch targets.
+
+Test Urdu layouts separately.
+
+Do not assume that simply translating English strings creates proper Urdu support.
+
+==================================================
+PART 29. ADS READINESS
+==================================================
+
+Prepare the architecture for future Google AdMob integration.
+
+Do not integrate advertisements during initial frontend development.
+
+Reserve suitable spaces for:
+- Native ads.
+- Banner ads.
+
+Never place ads:
+- Inside examination questions.
+- Between textbook paragraphs.
+- Over PDF content.
+- Over critical buttons.
+
+Keep the educational experience uninterrupted.
+
+==================================================
+PART 30. TESTING AND ZERO-DEFECT ENGINEERING
+==================================================
+
+A zero-error application cannot be guaranteed by prompt instructions alone.
+
+Your responsibility is to systematically detect, prevent and fix defects before delivery.
+
+Implement testing from the beginning.
+
+UNIT TESTS:
+
+Test:
+- Scoring calculations.
+- Answer evaluation.
+- Progress calculations.
+- Download state transitions.
+- Repository behavior.
+- Data transformations.
+- Synchronization logic.
+
+UI TESTS:
+
+Test:
+- Navigation.
+- Buttons.
+- Dialogs.
+- Bottom sheets.
+- Search.
+- Filters.
+- Theme switching.
+- Language switching.
+- Form validation.
+
+INTEGRATION TESTS:
+
+Test:
+- API responses.
+- Database persistence.
+- Download handling.
+- Offline behavior.
+- Authentication.
+- Synchronization.
+
+PDF TESTS:
+
+Test:
+- Small documents.
+- Large documents.
+- Multi-page documents.
+- Corrupt files.
+- Mathematical pages.
+- Diagrams.
+- Tables.
+- Zoom.
+- Rotation.
+- Reading position restoration.
+
+DOWNLOAD TESTS:
+
+Test:
+- Successful download.
+- Interrupted download.
+- Resume.
+- Cancellation.
+- Retry.
+- Duplicate requests.
+- Storage exhaustion.
+- Corrupt file validation.
+
+EXAMINATION TESTS:
+
+Test:
+- Correct answers.
+- Incorrect answers.
+- Unanswered questions.
+- Timer expiration.
+- App interruption.
+- Duplicate submission.
+- Result persistence.
+
+Never report tests as successful unless they actually ran.
+
+Maintain a defect log.
+
+Fix critical and high-priority issues before continuing.
+
+==================================================
+PART 31. IMPLEMENTATION ROADMAP
+==================================================
+
+Do not build the entire application in one uncontrolled operation.
+
+Follow these phases.
+
+PHASE 0: PROJECT AUDIT
+
+Inspect:
+- Existing Android project.
+- Existing Kotlin files.
+- Dependencies.
+- Architecture.
+- API contracts.
+- Existing backend.
+- Existing assets.
+- Build configuration.
+
+Produce a detailed report.
+
+Preserve working code.
+
+PHASE 1: DESIGN FOUNDATION
+
+Build:
+- Design tokens.
+- Light theme.
+- Dark theme.
+- Typography.
+- Icon system.
+- Buttons.
+- Cards.
+- Navigation.
+- Animations.
+- Reusable components.
+
+PHASE 2: APPLICATION FOUNDATION
+
+Build:
+- App entry point.
+- Navigation.
+- MVVM.
+- Dependency injection.
+- Room.
+- DataStore.
+- API architecture.
+- Error handling.
+
+PHASE 3: CORE EXPERIENCE
+
+Build:
+- Splash.
+- Onboarding.
+- Home.
+- Learn.
+- Subjects.
+- Chapters.
+- Profile.
+- Settings.
+
+PHASE 4: CONTENT EXPERIENCE
+
+Build:
+- Textbook library.
+- PDF viewer.
+- Study material library.
+- Native notes renderer.
+- Formula library.
+- Diagram library.
+- Bookmarks.
+
+PHASE 5: DOWNLOAD SYSTEM
+
+Build:
+- Download manager.
+- Queue.
+- Progress.
+- Pause and resume.
+- Retry.
+- Offline library.
+- Storage management.
+
+PHASE 6: PRACTICE EXPERIENCE
+
+Build:
+- MCQ engine.
+- Practice modes.
+- Examination engine.
+- Results.
+- Past papers.
+- Solved papers.
+
+PHASE 7: INTELLIGENT LEARNING
+
+Build:
+- Mistake Master.
+- Flashcards.
+- Study planner.
+- Revision system.
+- Daily challenge.
+- Smart recommendations.
+
+PHASE 8: ANALYTICS
+
+Build:
+- Progress dashboard.
+- Subject analytics.
+- Chapter analytics.
+- Study history.
+- Performance charts.
+
+PHASE 9: FINAL POLISH
+
+Improve:
+- Animations.
+- Transitions.
+- Rendering.
+- Loading states.
+- Accessibility.
+- Responsiveness.
+- Visual consistency.
+- Performance.
+
+PHASE 10: PRODUCTION VALIDATION
+
+Perform:
+- Compilation.
+- Automated tests.
+- Manual UI tests.
+- API tests.
+- Offline tests.
+- Performance tests.
+- Memory checks.
+- Final defect review.
+
+==================================================
+PART 32. STRICT DEVELOPMENT RULES
+==================================================
+
+These rules are mandatory.
+
+1. No fake buttons.
+
+2. No dead navigation.
+
+3. No placeholder functionality presented as complete.
+
+4. No hardcoded production data.
+
+5. No fabricated analytics.
+
+6. No broken API contracts.
+
+7. No unhandled exceptions.
+
+8. No unnecessary code duplication.
+
+9. No massive composable files.
+
+10. No random visual styling.
+
+11. No inconsistent components.
+
+12. No fake download progress.
+
+13. No incorrect examination calculations.
+
+14. No lost reading positions.
+
+15. No unnecessary network calls.
+
+16. No main-thread blocking.
+
+17. No hidden build errors.
+
+18. No untested critical features.
+
+19. No unnecessary architecture changes.
+
+20. No replacing existing working backend resources.
+
+21. No claiming success without verification.
+
+22. No sacrificing performance for visual effects.
+
+23. No sacrificing readability for aesthetics.
+
+24. No building screens that have no defined purpose.
+
+25. Every feature must have clear behavior, states and error handling.
+
+==================================================
+PART 33. PROJECT DOCUMENTATION
+==================================================
+
+Maintain these documents throughout development:
+
+1. FRONTEND_ARCHITECTURE.md
+2. DESIGN_SYSTEM.md
+3. SCREEN_INVENTORY.md
+4. NAVIGATION_MAP.md
+5. API_INTEGRATION.md
+6. COMPONENT_LIBRARY.md
+7. PDF_RENDERING.md
+8. DOWNLOAD_SYSTEM.md
+9. TESTING_REPORT.md
+10. KNOWN_ISSUES.md
+11. DEVELOPMENT_PROGRESS.md
+
+Update documentation whenever architecture or implementation changes.
+
+==================================================
+PART 34. FIRST EXECUTION INSTRUCTIONS
+==================================================
+
+IMPORTANT:
+
+Do not immediately generate hundreds of files.
+
+Start by inspecting the project.
+
+Then produce:
+
+1. Complete architecture audit.
+2. Existing functionality inventory.
+3. Design system proposal.
+4. Complete screen inventory.
+5. Navigation architecture.
+6. Component architecture.
+7. PDF rendering technology recommendation.
+8. Download manager architecture.
+9. API integration strategy.
+10. Testing strategy.
+11. Implementation roadmap.
+
+Identify missing information.
+
+Never invent existing API endpoints.
+
+Identify technical limitations honestly.
+
+After the report:
+
+Start Phase 1.
+
+Build the design system and shared UI components.
+
+Then compile and test what the available environment supports.
+
+Proceed phase by phase.
+
+At the end of every phase, provide:
+
+- Completed features.
+- Files created.
+- Files modified.
+- Architecture decisions.
+- Tests executed.
+- Test results.
+- Remaining issues.
+- Next phase.
+
+Do not move forward while critical defects remain unresolved.
+
+==================================================
+FINAL PRODUCT OBJECTIVE
+==================================================
+
+Build Imtihan Pro into a premium, reliable and beautiful educational application.
+
+The finished product must combine:
+
+Apple-inspired design quality.
+Professional textbook reading.
+High-quality PDF rendering.
+Powerful examination preparation.
+Reliable offline functionality.
+Smooth animations.
+Fast performance.
+Reliable API integration.
+Accurate educational interactions.
+Exceptional usability.
+
+The application must be technically sound and visually consistent.
+
+Do not build an AI-looking prototype.
+
+Build a real educational product that students can trust.

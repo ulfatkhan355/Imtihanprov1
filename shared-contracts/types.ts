@@ -93,6 +93,7 @@ export interface ApiAcademicClass {
   subjectCount: number;
   publishedChaptersCount: number;
   notes: string;
+  isPublicAvailable?: boolean;
 }
 
 export interface ApiSubject {
@@ -292,8 +293,8 @@ export interface ApiMcqItem {
   classLevel: ClassLevel;
   question: string;
   options: McqOption[];
-  correctOptionId: 'A' | 'B' | 'C' | 'D';
-  explanation: string;
+  correctOptionId?: 'A' | 'B' | 'C' | 'D' | null;
+  explanation?: string | null;
   difficulty: 'easy' | 'medium' | 'hard';
   topicTitle: string;
   pastPaperYear?: number;
@@ -762,6 +763,8 @@ export interface ApiAdPlacementConfig {
 export interface ApiPublicRuntimeConfig {
   defaultBoardCode: BoardCode;
   defaultClassLevel: ClassLevel;
+  availableClassLevels?: ClassLevel[];
+  defaultStudyGroup?: StudyGroupCode;
   kpkSubBoards: ApiKpkSubBoard[];
   studyGroups: ApiStudyGroupOption[];
   adPlacement: ApiAdPlacementConfig;
@@ -773,6 +776,7 @@ export interface AdminUserProfile {
   email: string;
   displayName: string;
   role: 'reviewer' | 'admin' | 'super_admin';
+  isActive?: boolean;
   createdAtIso: string;
   lastLoginAtIso: string | null;
 }

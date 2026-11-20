@@ -1,12 +1,6 @@
 package com.imtihanpro.app.ui.screens
 
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color as AndroidColor
-import android.graphics.pdf.PdfRenderer
-import android.os.ParcelFileDescriptor
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,26 +19,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.Bookmark
-import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.MenuBook
-import androidx.compose.material.icons.outlined.NoteAdd
 import androidx.compose.material.icons.outlined.PictureAsPdf
-import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Sync
-import androidx.compose.material.icons.outlined.ZoomIn
-import androidx.compose.material.icons.outlined.ZoomOut
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,7 +41,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,8 +49,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.imtihanpro.app.domain.engine.Stage3To8Engines
@@ -82,12 +65,10 @@ import com.imtihanpro.app.ui.components.ImtihanLoadingView
 import com.imtihanpro.app.ui.components.ImtihanProgressBar
 import com.imtihanpro.app.ui.components.SilverBlueCanvas
 import com.imtihanpro.app.ui.components.SilverBlueCard
+import com.imtihanpro.app.ui.reader.ImtihanPdfReader
 import com.imtihanpro.app.ui.theme.LocalImtihanColors
 import com.imtihanpro.app.ui.viewmodel.AppShellState
 import com.imtihanpro.app.ui.viewmodel.PdfViewerUiState
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.io.File
 
 /**
  * Screen 13: Papers, Textbooks & PDF Study Library
@@ -106,7 +87,8 @@ fun PastPapersScreen(
     onOpenPdfResource: (PdfResourceUi) -> Unit = {},
     onToggleDownloadPaper: (PastPaperUi) -> Unit,
     onToggleDownloadPdf: (PdfResourceUi) -> Unit = {},
-    onBannerDisplayed: () -> Unit = {}
+    onBannerDisplayed: () -> Unit = {},
+    onBack: (() -> Unit)? = null
 ) {
     val colors = LocalImtihanColors.current
     val showPapersAd = Stage3To8Engines.shouldDisplayAd(
@@ -127,11 +109,22 @@ fun PastPapersScreen(
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            Text(
-                text = "Papers & Study PDFs",
-                style = MaterialTheme.typography.headlineSmall,
-                color = colors.textPrimary
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (onBack != null) {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                            contentDescription = "Back",
+                            tint = colors.textPrimary
+                        )
+                    }
+                }
+                Text(
+                    text = "Papers & Study Library",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = colors.textPrimary
+                )
+            }
             Spacer(modifier = Modifier.height(10.dp))
 
             Row(
@@ -224,8 +217,8 @@ fun PastPapersScreen(
                 val filteredDocs = pdfLibrary.filter { it.category == selectedCategory }
                 if (filteredDocs.isEmpty()) {
                     ImtihanEmptyView(
-                        title = "No ${selectedCategory.replace('_', ' ')} PDFs Published",
-                        description = "Upload books, syllabi, or notes packs in Admin Console to make them available offline."
+                        title = "No ${selectedCategory.replace('_', ' ')} PDFs Published Yet",
+                        description = "Published Class 11 KPK textbooks, syllabi, and notes packs appear here for online reading and offline downloads."
                     )
                 } else {
                     LazyColumn(
@@ -304,7 +297,7 @@ private fun FilterChipButton(label: String, selected: Boolean, onClick: () -> Un
 }
 
 /**
- * Screen 14: Real Android PdfRenderer PDF Reader (Zero Ads Strictly Enforced During Study)
+ * Screen 14: Textbook-Grade Native Horizontal PDF Reader
  */
 @Composable
 fun PdfReaderScreen(
@@ -320,318 +313,19 @@ fun PdfReaderScreen(
     onDeleteAnnotation: (annotationId: String) -> Unit,
     onBack: () -> Unit
 ) {
-    val colors = LocalImtihanColors.current
-    var renderedBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var actualPageCount by remember(fallbackTotalPages) { mutableStateOf(maxOf(1, fallbackTotalPages)) }
-    var renderError by remember { mutableStateOf<String?>(null) }
-    var showNotesDialog by remember { mutableStateOf(false) }
-    var noteDraft by remember { mutableStateOf("") }
-
-    val rendererHolder = remember(viewerState.localFilePath) {
-        val path = viewerState.localFilePath
-        if (path != null && File(path).exists()) {
-            runCatching {
-                val pfd = ParcelFileDescriptor.open(File(path), ParcelFileDescriptor.MODE_READ_ONLY)
-                val renderer = PdfRenderer(pfd)
-                pfd to renderer
-            }.getOrNull()
-        } else {
-            null
-        }
-    }
-
-    DisposableEffect(rendererHolder) {
-        if (rendererHolder != null) {
-            actualPageCount = maxOf(1, rendererHolder.second.pageCount)
-        }
-        onDispose {
-            runCatching { rendererHolder?.second?.close() }
-            runCatching { rendererHolder?.first?.close() }
-        }
-    }
-
-    val currentPage = viewerState.currentPage.coerceIn(1, actualPageCount)
-    val zoomPercent = viewerState.zoomPercent.coerceIn(75, 250)
-    val isCurrentPageBookmarked = bookmarks.any { it.pageNumber == currentPage }
-    val currentPageNotes = annotations.filter { it.pageNumber == currentPage }
-
-    LaunchedEffect(rendererHolder, currentPage, zoomPercent) {
-        val pair = rendererHolder ?: return@LaunchedEffect
-        val renderer = pair.second
-        renderError = null
-        val bmp = withContext(Dispatchers.Default) {
-            runCatching {
-                val pageIndex = (currentPage - 1).coerceIn(0, renderer.pageCount - 1)
-                renderer.openPage(pageIndex).use { page ->
-                    val scaleFactor = (zoomPercent / 100f) * 2.0f
-                    val width = (page.width * scaleFactor).toInt().coerceIn(320, 2600)
-                    val height = (page.height * scaleFactor).toInt().coerceIn(400, 3600)
-                    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                    Canvas(bitmap).drawColor(AndroidColor.WHITE)
-                    page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                    bitmap
-                }
-            }.getOrElse { err ->
-                renderError = err.message ?: "Failed to render PDF page."
-                null
-            }
-        }
-        renderedBitmap = bmp
-    }
-
-    SilverBlueCanvas {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                        contentDescription = "Back",
-                        tint = colors.textPrimary
-                    )
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = paperTitle,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = colors.textPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = if (viewerState.localFilePath != null) {
-                            "Offline PDF · ${bookmarks.size} bookmarks · ${annotations.size} notes"
-                        } else {
-                            "Cloud PDF Stream (Backblaze B2)"
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colors.textSecondary,
-                        maxLines = 1
-                    )
-                }
-                IconButton(onClick = { showNotesDialog = true }) {
-                    Icon(
-                        imageVector = Icons.Outlined.NoteAdd,
-                        contentDescription = "Page notes and bookmarks",
-                        tint = if (currentPageNotes.isNotEmpty()) colors.accentBlue else colors.textPrimary
-                    )
-                }
-                IconButton(onClick = { onToggleBookmark(currentPage, "Page $currentPage") }) {
-                    Icon(
-                        imageVector = if (isCurrentPageBookmarked) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder,
-                        contentDescription = "Bookmark page",
-                        tint = if (isCurrentPageBookmarked) colors.warningGold else colors.textPrimary
-                    )
-                }
-            }
-
-            Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                shape = RoundedCornerShape(14.dp),
-                color = Color(0xFFF8FAFC)
-            ) {
-                when {
-                    viewerState.isDownloading -> {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator(color = colors.accentBlue)
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = "Downloading PDF from Cloudflare Worker / Backblaze B2...",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color(0xFF334155)
-                                )
-                            }
-                        }
-                    }
-
-                    renderedBitmap != null -> {
-                        val vScroll = rememberScrollState()
-                        val hScroll = rememberScrollState()
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .verticalScroll(vScroll)
-                                .horizontalScroll(hScroll),
-                            contentAlignment = Alignment.TopCenter
-                        ) {
-                            Image(
-                                bitmap = renderedBitmap!!.asImageBitmap(),
-                                contentDescription = "$paperTitle Page $currentPage",
-                                contentScale = ContentScale.Fit,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-
-                    else -> {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(24.dp),
-                            verticalArrangement = Arrangement.Center,
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.PictureAsPdf,
-                                contentDescription = null,
-                                tint = Color(0xFF1D4ED8),
-                                modifier = Modifier.size(48.dp)
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = renderError ?: viewerState.errorMessage ?: "PDF not cached locally yet.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFF1E293B)
-                            )
-                            Spacer(modifier = Modifier.height(14.dp))
-                            Button(
-                                onClick = onRetryDownload,
-                                colors = ButtonDefaults.buttonColors(containerColor = colors.accentBlue)
-                            ) {
-                                Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Download PDF Offline")
-                            }
-                        }
-                    }
-                }
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = {
-                        if (zoomPercent > 75) onUpdatePosition(currentPage, actualPageCount, zoomPercent - 25)
-                    }) {
-                        Icon(Icons.Outlined.ZoomOut, contentDescription = "Zoom out", tint = colors.textPrimary)
-                    }
-                    Text(
-                        text = "$zoomPercent%",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colors.textSecondary
-                    )
-                    IconButton(onClick = {
-                        if (zoomPercent < 250) onUpdatePosition(currentPage, actualPageCount, zoomPercent + 25)
-                    }) {
-                        Icon(Icons.Outlined.ZoomIn, contentDescription = "Zoom in", tint = colors.textPrimary)
-                    }
-                }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = {
-                            if (currentPage > 1) onUpdatePosition(currentPage - 1, actualPageCount, zoomPercent)
-                        },
-                        enabled = currentPage > 1,
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-                    ) {
-                        Text("Prev", maxLines = 1)
-                    }
-                    Text(
-                        text = "$currentPage / $actualPageCount",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = colors.textPrimary,
-                        maxLines = 1
-                    )
-                    Button(
-                        onClick = {
-                            if (currentPage < actualPageCount) onUpdatePosition(currentPage + 1, actualPageCount, zoomPercent)
-                        },
-                        enabled = currentPage < actualPageCount,
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = colors.accentBlue)
-                    ) {
-                        Text("Next", maxLines = 1)
-                    }
-                }
-            }
-        }
-    }
-
-    if (showNotesDialog) {
-        AlertDialog(
-            onDismissRequest = { showNotesDialog = false },
-            title = { Text("Bookmarks & Notes (Page $currentPage)") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = noteDraft,
-                        onValueChange = { noteDraft = it },
-                        label = { Text("Add study note for page $currentPage") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Button(
-                        onClick = {
-                            if (noteDraft.isNotBlank()) {
-                                onAddAnnotation(currentPage, noteDraft)
-                                noteDraft = ""
-                            }
-                        },
-                        enabled = noteDraft.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Save Page Note")
-                    }
-                    if (bookmarks.isNotEmpty()) {
-                        Text("Saved Bookmarks:", style = MaterialTheme.typography.labelMedium)
-                        bookmarks.forEach { bm ->
-                            TextButton(
-                                onClick = {
-                                    onUpdatePosition(bm.pageNumber, actualPageCount, zoomPercent)
-                                    showNotesDialog = false
-                                }
-                            ) {
-                                Text("Jump to Page ${bm.pageNumber} (${bm.label})")
-                            }
-                        }
-                    }
-                    if (annotations.isNotEmpty()) {
-                        Text("Study Notes:", style = MaterialTheme.typography.labelMedium)
-                        annotations.take(5).forEach { note ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                TextButton(
-                                    onClick = {
-                                        onUpdatePosition(note.pageNumber, actualPageCount, zoomPercent)
-                                        showNotesDialog = false
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text("P.${note.pageNumber}: ${note.noteText}", maxLines = 2)
-                                }
-                                IconButton(onClick = { onDeleteAnnotation(note.id) }) {
-                                    Icon(Icons.Outlined.DeleteOutline, contentDescription = "Delete note")
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showNotesDialog = false }) {
-                    Text("Close")
-                }
-            }
-        )
-    }
+    ImtihanPdfReader(
+        paperTitle = paperTitle,
+        fallbackTotalPages = fallbackTotalPages,
+        viewerState = viewerState,
+        bookmarks = bookmarks,
+        annotations = annotations,
+        onRetryDownload = onRetryDownload,
+        onUpdatePosition = onUpdatePosition,
+        onToggleBookmark = onToggleBookmark,
+        onAddAnnotation = onAddAnnotation,
+        onDeleteAnnotation = onDeleteAnnotation,
+        onBack = onBack
+    )
 }
 
 /**
@@ -908,7 +602,7 @@ fun ProfileSettingsScreen(
                 SilverBlueCard(modifier = Modifier.fillMaxWidth()) {
                     SettingToggleRow(
                         title = "Theme",
-                        subtitle = if (shellState.isDarkMode) "2050 OLED Obsidian Dark (Primary)" else "Ice-Glass Light Mode",
+                        subtitle = if (shellState.isDarkMode) "Clean Obsidian Dark" else "Crisp Alabaster Light",
                         checked = shellState.isDarkMode,
                         onCheckedChange = onToggleDarkMode
                     )
@@ -929,7 +623,7 @@ fun ProfileSettingsScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                     SettingToggleRow(
                         title = "High-Contrast Notes Reader",
-                        subtitle = if (shellState.readerHighContrastMode == "PAPER") "Paper Contrast Active" else "OLED Contrast Active",
+                        subtitle = if (shellState.readerHighContrastMode == "PAPER") "Paper Contrast Active" else "Clean Dark Contrast Active",
                         checked = shellState.readerHighContrastMode == "PAPER",
                         onCheckedChange = { paper -> onSetReaderHighContrastMode(if (paper) "PAPER" else "OLED") }
                     )
@@ -991,7 +685,7 @@ fun ProfileSettingsScreen(
             }
 
             item {
-                ProfileNavRow("Change Class / BISE / Study Group", "Switch Classes 9-12, KPK division & academic group", onChangeClassOrBoard)
+                ProfileNavRow("Change BISE Region / Study Group", "KPK BISE division, medium & Class 11 stream", onChangeClassOrBoard)
             }
         }
     }

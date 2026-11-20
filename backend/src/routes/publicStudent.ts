@@ -28,7 +28,9 @@ import {
   listPdfMetadata,
   listSubjects,
   listSubjectivePromptsForExam,
+  safeJsonParse,
   searchCatalog,
+  stripMcqAnswerKey,
 } from '../db/repository';
 import { HttpError, jsonEnvelope, type D1PreparedStatement, type Env } from '../env';
 import {
@@ -128,7 +130,9 @@ export async function handlePublicStudentRoutes(
       const aiTutorConfigured = Boolean((env.GEMINI_API_KEY || env.AI_PROVIDER_API_KEY || '').trim());
       const cfg: ApiPublicRuntimeConfig = {
         defaultBoardCode: 'KPK',
-        defaultClassLevel: 9,
+        defaultClassLevel: 11,
+        availableClassLevels: [11],
+        defaultStudyGroup: 'PRE_MEDICAL',
         kpkSubBoards: KPK_SUB_BOARDS,
         studyGroups: STUDY_GROUPS_CATALOG,
         adPlacement,
@@ -325,8 +329,36 @@ export async function handlePublicStudentRoutes(
           )
         : [];
 
+    const sessionId = `exam_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
+    const nowIso = new Date().toISOString();
+    const resolvedStudent = await resolveStudentFromRequest(request, env).catch(() => null);
+
+    await env.DB.prepare(
+      `INSERT INTO exam_sessions (
+        id, student_id, guest_device_id, mode, board_code, class_level,
+        subject_id, chapter_id, mcq_ids_json, marks_per_mcq,
+        negative_marking_penalty, pass_percentage, started_at_iso, submitted_at_iso
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`
+    )
+      .bind(
+        sessionId,
+        resolvedStudent?.studentId ?? null,
+        resolvedStudent?.guestDeviceId ?? null,
+        body.mode,
+        body.boardCode,
+        body.classLevel,
+        body.subjectId || mcqs[0].subjectId,
+        body.chapterId ?? null,
+        JSON.stringify(mcqs.map((m) => m.id)),
+        marksPerMcq,
+        negativeMarkingPenalty,
+        passPercentage,
+        nowIso
+      )
+      .run();
+
     const sessionPayload: ApiExamSessionPayload = {
-      sessionId: `exam_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`,
+      sessionId,
       mode: body.mode,
       title:
         matchedPattern?.title ||
@@ -337,11 +369,14 @@ export async function handlePublicStudentRoutes(
       marksPerMcq,
       negativeMarkingPenalty,
       passPercentage,
-      mcqs,
+      mcqs: mcqs.map(stripMcqAnswerKey),
       subjectivePrompts,
     };
 
-    return jsonEnvelope(sessionPayload, env, 200, headers);
+    return jsonEnvelope(sessionPayload, env, 200, {
+      ...headers,
+      'Cache-Control': PRIVATE_NO_STORE_CACHE_CONTROL,
+    });
   }
 
   if (method === 'POST' && path === '/v1/quizzes/submissions') {
@@ -350,7 +385,31 @@ export async function handlePublicStudentRoutes(
       throw new HttpError(400, 'INVALID_QUIZ_SUBMISSION', 'sessionId, guestDeviceId, and answers array are required.');
     }
 
-    const answerIds = body.answers.map((a) => a.mcqId).filter(Boolean);
+    const storedSession = await env.DB.prepare(
+      `SELECT id, subject_id, chapter_id, mode, mcq_ids_json, marks_per_mcq, negative_marking_penalty, pass_percentage
+       FROM exam_sessions WHERE id = ? LIMIT 1`
+    )
+      .bind(body.sessionId)
+      .first<{
+        id: string;
+        subject_id: string | null;
+        chapter_id: string | null;
+        mode: string;
+        mcq_ids_json: string;
+        marks_per_mcq: number;
+        negative_marking_penalty: number;
+        pass_percentage: number;
+      }>();
+
+    const sessionMcqIds = storedSession
+      ? safeJsonParse<string[]>(storedSession.mcq_ids_json, [])
+      : [];
+    const answerIds = Array.from(
+      new Set([
+        ...sessionMcqIds,
+        ...body.answers.map((a) => a.mcqId).filter(Boolean),
+      ])
+    );
     const mcqs =
       answerIds.length > 0
         ? await listMcqsFiltered(env.DB, { ids: answerIds, includeUnpublished: true })
@@ -358,9 +417,23 @@ export async function handlePublicStudentRoutes(
           ? await listChapterMcqs(env.DB, body.chapterId)
           : [];
 
-    const result = gradeQuizSubmission(mcqs, body);
+    const authoritativeSubmission: ApiQuizSubmissionRequest = storedSession
+      ? {
+          ...body,
+          subjectId: body.subjectId || storedSession.subject_id || '',
+          chapterId: body.chapterId ?? storedSession.chapter_id ?? null,
+          examMode: (storedSession.mode as ApiQuizSubmissionRequest['examMode']) || body.examMode,
+          marksPerMcq: Number(storedSession.marks_per_mcq ?? body.marksPerMcq ?? 1),
+          negativeMarkingPenalty: Number(
+            storedSession.negative_marking_penalty ?? body.negativeMarkingPenalty ?? 0
+          ),
+          passPercentage: Number(storedSession.pass_percentage ?? body.passPercentage ?? 40),
+        }
+      : body;
+
+    const result = gradeQuizSubmission(mcqs, authoritativeSubmission);
     const submittedAtIso = body.submittedAtIso || new Date().toISOString();
-    const examMode = body.examMode || 'chapter_test';
+    const examMode = authoritativeSubmission.examMode || 'chapter_test';
 
     // Resolve or auto-register guest student profile for mistakes/XP/history tracking
     const reqForStudent = new Request(request.url, {
@@ -387,8 +460,8 @@ export async function handlePublicStudentRoutes(
         body.sessionId,
         effectiveStudentId,
         body.guestDeviceId,
-        body.subjectId,
-        body.chapterId ?? null,
+        authoritativeSubmission.subjectId,
+        authoritativeSubmission.chapterId ?? null,
         result.totalQuestions,
         result.correctCount,
         result.incorrectCount,
@@ -403,6 +476,12 @@ export async function handlePublicStudentRoutes(
         result.passed ? 1 : 0
       )
       .run();
+
+    if (storedSession) {
+      await env.DB.prepare('UPDATE exam_sessions SET submitted_at_iso = ? WHERE id = ?')
+        .bind(submittedAtIso, storedSession.id)
+        .run();
+    }
 
     // Update Mistake Master, XP, Streaks & Achievements for resolved student using D1 batching
     if (effectiveStudentId) {
@@ -442,7 +521,7 @@ export async function handlePublicStudentRoutes(
               item.topicTitle || '',
               item.question,
               ans?.selectedOptionId ?? null,
-              item.correctOptionId,
+              item.correctOptionId ?? fb.correctOptionId,
               submittedAtIso
             )
           );

@@ -4,6 +4,7 @@ import type {
   AdminCapacityDashboardResponse,
   AdminInfrastructureStatusResponse,
   AdminMcqWritePayload,
+  AdminUserProfile,
   ApiAiAgentSubmission,
   ApiChapter,
   ApiFeedbackReport,
@@ -60,6 +61,7 @@ export default function AdminApp() {
     apiBaseUrl: resolveInitialApiBaseUrl(),
   }));
   const [infraStatus, setInfraStatus] = useState<AdminInfrastructureStatusResponse | null>(null);
+  const [adminUsers, setAdminUsers] = useState<AdminUserProfile[]>([]);
   const [capacityDashboard, setCapacityDashboard] =
     useState<AdminCapacityDashboardResponse | null>(null);
 
@@ -93,11 +95,12 @@ export default function AdminApp() {
   }, [apiClient]);
 
   const loadLiveDashboard = useCallback(async () => {
-    const [overview, policy, infra, capacity] = await Promise.all([
+    const [overview, policy, infra, capacity, users] = await Promise.all([
       apiClient.fetchOverview(),
       apiClient.fetchSettingsPolicy().catch(() => ({} as Partial<AdminSettingsState>)),
       apiClient.fetchInfrastructureStatus().catch(() => null),
       apiClient.fetchCapacityDashboard().catch(() => null),
+      apiClient.fetchAdminUsers().catch(() => []),
     ]);
     setLiveDataset(overview);
     setLiveSettings((prev) => ({
@@ -111,6 +114,7 @@ export default function AdminApp() {
     }));
     if (infra) setInfraStatus(infra);
     if (capacity) setCapacityDashboard(capacity);
+    if (users.length > 0) setAdminUsers(users);
     if (overview.chapters.length > 0) {
       setSelectedChapterId((curr) =>
         overview.chapters.some((c) => c.id === curr) ? curr : overview.chapters[0].id
@@ -600,11 +604,18 @@ export default function AdminApp() {
               connectionMode={connectionMode}
               settings={settings}
               infraStatus={infraStatus}
+              adminUsers={adminUsers}
+              currentAdmin={session?.admin ?? null}
               onRefreshInfra={async () => {
                 const res = await apiClient.fetchInfrastructureStatus();
                 setInfraStatus(res);
               }}
               onSaveSettings={handleSaveSettings}
+              onUpdateAdminRole={async (adminId, payload) => {
+                await apiClient.updateAdminUserRole(adminId, payload);
+                const refreshed = await apiClient.fetchAdminUsers().catch(() => []);
+                setAdminUsers(refreshed);
+              }}
             />
           )}
 

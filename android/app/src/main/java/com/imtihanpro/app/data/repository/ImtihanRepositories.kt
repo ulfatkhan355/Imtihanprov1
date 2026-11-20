@@ -27,6 +27,7 @@ import com.imtihanpro.app.data.remote.ApiContentJsonParser
 import com.imtihanpro.app.data.remote.ApiResult
 import com.imtihanpro.app.data.remote.ImtihanApiClient
 import com.imtihanpro.app.data.remote.ImtihanSyncRules
+import com.imtihanpro.app.data.sync.SyncScheduler
 import com.imtihanpro.app.domain.engine.Stage3To8Engines
 import com.imtihanpro.app.domain.model.AchievementUi
 import com.imtihanpro.app.domain.model.AdPlacementPolicyUi
@@ -47,6 +48,7 @@ import com.imtihanpro.app.domain.model.PdfReadingStateUi
 import com.imtihanpro.app.domain.model.PdfResourceUi
 import com.imtihanpro.app.domain.model.QuizHistoryItemUi
 import com.imtihanpro.app.domain.model.QuizResultUi
+import com.imtihanpro.app.domain.model.QuizReviewItemUi
 import com.imtihanpro.app.domain.model.RevisionRecommendationUi
 import com.imtihanpro.app.domain.model.SearchResultsUi
 import com.imtihanpro.app.domain.model.SmartInsightsUi
@@ -56,6 +58,7 @@ import com.imtihanpro.app.domain.model.StudyPlannerUi
 import com.imtihanpro.app.domain.model.SubjectAnalyticsUi
 import com.imtihanpro.app.domain.model.SubjectUiModel
 import com.imtihanpro.app.domain.model.SubjectivePromptUi
+import com.imtihanpro.app.domain.model.TopicScoreBreakdownUi
 import com.imtihanpro.app.domain.model.TutorGroundedSourceUi
 import com.imtihanpro.app.domain.model.TutorResponseUi
 import com.imtihanpro.app.domain.model.UiResourceState
@@ -161,7 +164,8 @@ interface CurriculumRepository {
         elapsedSeconds: Int,
         marksPerMcq: Double = 1.0,
         negativeMarkingPenalty: Double = 0.0,
-        passPercentage: Int = 40
+        passPercentage: Int = 40,
+        sessionId: String? = null
     ): QuizResultUi = Stage3To8Engines.gradeQuizWithRules(
         questions = questions,
         selectedAnswers = selectedAnswers,
@@ -807,8 +811,8 @@ class OfflineFirstCurriculumRepository(
                                 subjectId = m.subjectId,
                                 question = m.question,
                                 optionsJson = ApiContentJsonParser.serializeOptions(m.options),
-                                correctOptionId = m.correctOptionId,
-                                explanation = m.explanation,
+                                correctOptionId = m.correctOptionId ?: "",
+                                explanation = m.explanation ?: "",
                                 difficulty = m.difficulty,
                                 topicTitle = m.topicTitle,
                                 questionUrdu = m.questionUrdu,
@@ -835,8 +839,8 @@ class OfflineFirstCurriculumRepository(
                         subjectId = m.subjectId,
                         question = m.question,
                         options = ApiContentJsonParser.parseOptions(JSONArray(m.optionsJson)),
-                        correctOptionId = m.correctOptionId,
-                        explanation = m.explanation,
+                        correctOptionId = m.correctOptionId.ifBlank { seedFallback?.correctOptionId },
+                        explanation = m.explanation.ifBlank { seedFallback?.explanation },
                         difficulty = m.difficulty,
                         topicTitle = m.topicTitle,
                         questionUrdu = m.questionUrdu ?: seedFallback?.questionUrdu,
@@ -1047,8 +1051,9 @@ class OfflineFirstCurriculumRepository(
         }
 
         val targetPdfId = pdfMetadataId.ifBlank { paperId }
+        val expectedSha = MockSeedDataSource.pdfLibrary.firstOrNull { it.id == targetPdfId }?.checksumSha256
         val targetFile = File(File(context.filesDir, "pdfs"), "$targetPdfId.pdf")
-        return when (val res = apiClient.downloadPdfToFile(prefs.configuredApiBaseUrl, targetPdfId, targetFile)) {
+        return when (val res = apiClient.downloadPdfToFile(prefs.configuredApiBaseUrl, targetPdfId, targetFile, expectedSha)) {
             is ApiResult.Success -> {
                 val actualMb = maxOf(0.1, res.data.length() / (1024.0 * 1024.0))
                 offlineDao.upsertDownloadedPdf(
@@ -1249,28 +1254,101 @@ class OfflineFirstCurriculumRepository(
         elapsedSeconds: Int,
         marksPerMcq: Double,
         negativeMarkingPenalty: Double,
-        passPercentage: Int
+        passPercentage: Int,
+        sessionId: String?
     ): QuizResultUi {
-        val result = Stage3To8Engines.gradeQuizWithRules(
-            questions = questions,
-            selectedAnswers = selectedAnswers,
-            elapsedSeconds = elapsedSeconds,
-            marksPerMcq = marksPerMcq,
-            negativeMarkingPenalty = negativeMarkingPenalty,
-            passPercentage = passPercentage
-        ).copy(examMode = examMode)
-
         val prefs = preferencesDataStore.preferencesFlow.first()
-        val sessionId = "quiz_${UUID.randomUUID().toString().take(10)}"
+        val effectiveSessionId = sessionId?.takeIf { it.isNotBlank() }
+            ?: "quiz_${UUID.randomUUID().toString().take(10)}"
         val submittedAt = nowIsoUtc()
         val nowMs = System.currentTimeMillis()
         val answerPairs = questions.map { it.id to selectedAnswers[it.id] }
+
+        var sentOnline = false
+        var remoteDto: com.imtihanpro.app.data.remote.ApiQuizSubmissionResultDto? = null
+        if (!prefs.offlineOnlyMode) {
+            val remote = apiClient.submitQuiz(
+                baseUrl = prefs.configuredApiBaseUrl,
+                sessionId = effectiveSessionId,
+                guestDeviceId = prefs.guestDeviceId,
+                bearerToken = prefs.authToken,
+                subjectId = subjectId,
+                chapterId = chapterId,
+                answers = answerPairs,
+                elapsedSeconds = elapsedSeconds,
+                submittedAtIso = submittedAt,
+                examMode = examMode,
+                marksPerMcq = marksPerMcq,
+                negativeMarkingPenalty = negativeMarkingPenalty,
+                passPercentage = passPercentage
+            )
+            if (remote is ApiResult.Success) {
+                sentOnline = true
+                remoteDto = remote.data
+            }
+        }
+
+        val result = if (remoteDto != null && remoteDto.perQuestionFeedback.isNotEmpty()) {
+            val feedbackByMcqId = remoteDto.perQuestionFeedback.associateBy { it.mcqId }
+            val topicAgg = linkedMapOf<String, Pair<Int, Int>>()
+            val review = questions.map { q ->
+                val fb = feedbackByMcqId[q.id]
+                val chosen = selectedAnswers[q.id]
+                val resolvedCorrect = fb?.correctOptionId ?: q.correctOptionId
+                val resolvedExp = fb?.explanation?.ifBlank { null } ?: q.explanation ?: ""
+                val isCorrect = fb?.isCorrect ?: (chosen != null && resolvedCorrect != null && chosen == resolvedCorrect)
+                val topic = q.topicTitle.ifBlank { "Core Concepts" }
+                val prev = topicAgg[topic] ?: (0 to 0)
+                topicAgg[topic] = (prev.first + if (isCorrect) 1 else 0) to (prev.second + 1)
+                QuizReviewItemUi(
+                    mcqId = q.id,
+                    question = q.question,
+                    selectedOptionId = chosen,
+                    correctOptionId = resolvedCorrect,
+                    explanation = resolvedExp,
+                    isCorrect = isCorrect,
+                    topicTitle = topic
+                )
+            }
+            val mins = remoteDto.elapsedSeconds / 60
+            val secs = remoteDto.elapsedSeconds % 60
+            val formattedTime = "%02d:%02d".format(Locale.US, mins, secs)
+            val topicBreakdown = topicAgg.map { (topic, counts) ->
+                val acc = if (counts.second == 0) 0 else ((counts.first.toFloat() / counts.second.toFloat()) * 100f).roundToInt()
+                TopicScoreBreakdownUi(topicTitle = topic, correct = counts.first, total = counts.second, accuracyPercent = acc)
+            }
+            QuizResultUi(
+                totalQuestions = remoteDto.totalQuestions,
+                correctCount = remoteDto.correctCount,
+                incorrectCount = remoteDto.incorrectCount,
+                unansweredCount = remoteDto.unansweredCount,
+                percentage = remoteDto.percentage,
+                elapsedTimeFormatted = formattedTime,
+                reviewItems = review,
+                marksObtained = remoteDto.marksObtained,
+                totalMarks = remoteDto.totalMarks,
+                passed = remoteDto.passed,
+                passPercentage = remoteDto.passPercentage,
+                xpEarned = remoteDto.xpEarned,
+                topicBreakdown = topicBreakdown,
+                examMode = examMode
+            )
+        } else {
+            Stage3To8Engines.gradeQuizWithRules(
+                questions = questions,
+                selectedAnswers = selectedAnswers,
+                elapsedSeconds = elapsedSeconds,
+                marksPerMcq = marksPerMcq,
+                negativeMarkingPenalty = negativeMarkingPenalty,
+                passPercentage = passPercentage
+            ).copy(examMode = examMode)
+        }
 
         // Save quiz attempt locally in Room
         quizAttemptDao.insertAttempt(
             QuizAttemptEntity(
                 id = "qa_${UUID.randomUUID().toString().take(10)}",
-                sessionId = sessionId,
+                sessionId = effectiveSessionId,
                 subjectId = subjectId,
                 subjectName = subjectName,
                 chapterId = chapterId,
@@ -1291,12 +1369,16 @@ class OfflineFirstCurriculumRepository(
         )
 
         // Record mistakes and resolve mastered questions locally
+        val reviewByMcqId = result.reviewItems.associateBy { it.mcqId }
         for (q in questions) {
+            val reviewItem = reviewByMcqId[q.id]
             val chosen = selectedAnswers[q.id]
-            val isCorrect = chosen != null && chosen == q.correctOptionId
+            val isCorrect = reviewItem?.isCorrect ?: (chosen != null && q.correctOptionId != null && chosen == q.correctOptionId)
+            val resolvedCorrect = reviewItem?.correctOptionId ?: q.correctOptionId
+            val resolvedExplanation = reviewItem?.explanation?.ifBlank { null } ?: q.explanation ?: ""
             if (isCorrect) {
                 mistakeDao.markMastered(q.id, nowMs)
-            } else {
+            } else if (!resolvedCorrect.isNullOrBlank()) {
                 val existing = mistakeDao.getByIdOnce(q.id)
                 mistakeDao.upsertMistake(
                     MistakeQuestionEntity(
@@ -1307,8 +1389,8 @@ class OfflineFirstCurriculumRepository(
                         question = q.question,
                         optionsJson = ApiContentJsonParser.serializeOptions(q.options.map { it.id to it.text }),
                         lastWrongOptionId = chosen,
-                        correctOptionId = q.correctOptionId,
-                        explanation = q.explanation,
+                        correctOptionId = resolvedCorrect,
+                        explanation = resolvedExplanation,
                         wrongCount = (existing?.wrongCount ?: 0) + 1,
                         mastered = false,
                         lastAttemptedAtEpochMs = nowMs
@@ -1325,33 +1407,13 @@ class OfflineFirstCurriculumRepository(
             preferencesDataStore.setDiagnosticCompleted(true)
         }
 
-        var sentOnline = false
-        if (!prefs.offlineOnlyMode) {
-            val remote = apiClient.submitQuiz(
-                baseUrl = prefs.configuredApiBaseUrl,
-                sessionId = sessionId,
-                guestDeviceId = prefs.guestDeviceId,
-                bearerToken = prefs.authToken,
-                subjectId = subjectId,
-                chapterId = chapterId,
-                answers = answerPairs,
-                elapsedSeconds = elapsedSeconds,
-                submittedAtIso = submittedAt,
-                examMode = examMode,
-                marksPerMcq = marksPerMcq,
-                negativeMarkingPenalty = negativeMarkingPenalty,
-                passPercentage = passPercentage
-            )
-            sentOnline = remote is ApiResult.Success
-        }
-
         if (!sentOnline) {
             val arr = JSONArray()
             answerPairs.forEach { (id, opt) ->
                 arr.put(JSONObject().put("mcqId", id).put("selectedOptionId", opt ?: JSONObject.NULL))
             }
             val queued = JSONObject()
-                .put("sessionId", sessionId)
+                .put("sessionId", effectiveSessionId)
                 .put("subjectId", subjectId)
                 .put("chapterId", chapterId ?: JSONObject.NULL)
                 .put("elapsedSeconds", elapsedSeconds)
@@ -1368,6 +1430,7 @@ class OfflineFirstCurriculumRepository(
                     createdAtEpochMs = nowMs
                 )
             )
+            SyncScheduler.enqueueImmediateSync(context)
         }
 
         if (!chapterId.isNullOrBlank() && result.percentage >= 60) {
@@ -2360,8 +2423,8 @@ class OfflineFirstCurriculumRepository(
                             subjectId = m.subjectId,
                             question = m.question,
                             optionsJson = ApiContentJsonParser.serializeOptions(m.options),
-                            correctOptionId = m.correctOptionId,
-                            explanation = m.explanation,
+                            correctOptionId = m.correctOptionId ?: "",
+                            explanation = m.explanation ?: "",
                             difficulty = m.difficulty,
                             topicTitle = m.topicTitle,
                             questionUrdu = m.questionUrdu,

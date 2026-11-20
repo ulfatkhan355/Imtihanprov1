@@ -56,10 +56,10 @@ data class AppShellState(
     val hasCompletedSetup: Boolean = false,
     val isDarkMode: Boolean = true,
     val isOfflineSimulated: Boolean = false,
-    val selectedClassLevel: Int = 9,
+    val selectedClassLevel: Int = 11,
     val selectedBoardCode: String = "KPK",
     val selectedSubBoardCode: String = "PESHAWAR",
-    val studyGroupCode: String = "SCIENCE_BIOLOGY",
+    val studyGroupCode: String = "PRE_MEDICAL",
     val languageCode: String = "English",
     val notificationsEnabled: Boolean = true,
     val dailyTargetMinutes: Int = 45,
@@ -85,20 +85,20 @@ data class AppShellState(
     val profile: StudentProfileUi = StudentProfileUi(
         displayName = "Guest Learner",
         isGuest = true,
-        selectedClass = 9,
+        selectedClass = 11,
         selectedBoard = "KPK",
         studyHours = 0,
         chaptersCompleted = 0,
         overallProgressPercent = 0,
         dailyGoalPercent = 0,
         selectedSubBoard = "PESHAWAR",
-        studyGroup = "SCIENCE_BIOLOGY"
+        studyGroup = "PRE_MEDICAL"
     )
 )
 
 data class QuizSessionState(
-    val chapterId: String = "ch_phy9_01",
-    val subjectId: String = "sub_kpk9_phy",
+    val chapterId: String = "ch_phy11_01",
+    val subjectId: String = "sub_kpk11_phy",
     val sessionId: String = "chapter_session",
     val title: String = "Chapter Practice Quiz",
     val mode: String = "chapter_test",
@@ -113,6 +113,7 @@ data class QuizSessionState(
     val customQuestions: List<McqQuestionUi>? = null,
     val subjectivePrompts: List<SubjectivePromptUi> = emptyList(),
     val isLoadingSession: Boolean = false,
+    val isSubmitting: Boolean = false,
     val sessionError: String? = null,
     val latestResult: QuizResultUi? = null
 )
@@ -135,10 +136,10 @@ class ImtihanViewModel(
     private val _shellState = MutableStateFlow(AppShellState())
     val shellState: StateFlow<AppShellState> = _shellState.asStateFlow()
 
-    private val _selectedSubjectId = MutableStateFlow("sub_kpk9_phy")
+    private val _selectedSubjectId = MutableStateFlow("sub_kpk11_phy")
     val selectedSubjectId: StateFlow<String> = _selectedSubjectId.asStateFlow()
 
-    private val _selectedChapterId = MutableStateFlow("ch_phy9_01")
+    private val _selectedChapterId = MutableStateFlow("ch_phy11_01")
     val selectedChapterId: StateFlow<String> = _selectedChapterId.asStateFlow()
 
     private val _paperSolvedFilter = MutableStateFlow<Boolean?>(null)
@@ -411,7 +412,10 @@ class ImtihanViewModel(
                 )
             )
         }
-        if (classLevel == 9) {
+        if (classLevel == 11) {
+            _selectedSubjectId.value = "sub_kpk11_phy"
+            _selectedChapterId.value = "ch_phy11_01"
+        } else if (classLevel == 9) {
             _selectedSubjectId.value = "sub_kpk9_phy"
             _selectedChapterId.value = "ch_phy9_01"
         } else if (classLevel == 10) {
@@ -454,7 +458,10 @@ class ImtihanViewModel(
                 )
             )
         }
-        if (classLevel == 9) {
+        if (classLevel == 11) {
+            _selectedSubjectId.value = "sub_kpk11_phy"
+            _selectedChapterId.value = "ch_phy11_01"
+        } else if (classLevel == 9) {
             _selectedSubjectId.value = "sub_kpk9_phy"
             _selectedChapterId.value = "ch_phy9_01"
         } else if (classLevel == 10) {
@@ -802,22 +809,27 @@ class ImtihanViewModel(
 
     fun submitExamSession(questions: List<McqQuestionUi>, onFinished: () -> Unit) {
         val current = _quizState.value
-        val immediateResult = Stage3To8Engines.gradeQuizWithRules(
-            questions = questions,
-            selectedAnswers = current.selectedAnswers,
-            elapsedSeconds = current.elapsedSeconds,
-            marksPerMcq = current.marksPerMcq,
-            negativeMarkingPenalty = current.negativeMarkingPenalty,
-            passPercentage = current.passPercentage
-        ).copy(examMode = current.mode)
-        _quizState.update { it.copy(latestResult = immediateResult) }
+        val requiresServerGrading = questions.any { it.correctOptionId == null }
+        if (requiresServerGrading) {
+            _quizState.update { it.copy(isSubmitting = true, latestResult = null) }
+        } else {
+            val immediateResult = Stage3To8Engines.gradeQuizWithRules(
+                questions = questions,
+                selectedAnswers = current.selectedAnswers,
+                elapsedSeconds = current.elapsedSeconds,
+                marksPerMcq = current.marksPerMcq,
+                negativeMarkingPenalty = current.negativeMarkingPenalty,
+                passPercentage = current.passPercentage
+            ).copy(examMode = current.mode)
+            _quizState.update { it.copy(latestResult = immediateResult, isSubmitting = false) }
+        }
 
         viewModelScope.launch {
             val subjectName = (subjectsState.value as? UiResourceState.Success)
                 ?.data?.firstOrNull { it.id == current.subjectId }?.name ?: "KPK Subject"
             val chapterTitle = (chaptersState.value as? UiResourceState.Success)
                 ?.data?.firstOrNull { it.id == current.chapterId }?.title
-            repository.submitExamResult(
+            val finalResult = repository.submitExamResult(
                 subjectId = current.subjectId.ifBlank { _selectedSubjectId.value },
                 subjectName = subjectName,
                 chapterId = current.chapterId.takeIf { it.isNotBlank() },
@@ -828,8 +840,10 @@ class ImtihanViewModel(
                 elapsedSeconds = current.elapsedSeconds,
                 marksPerMcq = current.marksPerMcq,
                 negativeMarkingPenalty = current.negativeMarkingPenalty,
-                passPercentage = current.passPercentage
+                passPercentage = current.passPercentage,
+                sessionId = current.sessionId
             )
+            _quizState.update { it.copy(latestResult = finalResult, isSubmitting = false) }
         }
         onFinished()
     }
@@ -987,14 +1001,17 @@ class ImtihanViewModel(
         )
         viewModelScope.launch {
             val savedState = repository.getPdfReadingState(targetId)
+            val effectiveUpperBound = maxOf(1, totalPages, savedState.totalPages, savedState.lastPage)
+            val restoredPage = savedState.lastPage.coerceIn(1, effectiveUpperBound)
+            val restoredZoom = savedState.zoomPercent.coerceIn(100, 400)
             val local = repository.findLocalPdfPath(paperId, targetId)
             if (local != null) {
                 _pdfViewerState.update {
                     it.copy(
                         localFilePath = local,
                         isDownloading = false,
-                        currentPage = savedState.lastPage.coerceIn(1, maxOf(1, totalPages)),
-                        zoomPercent = savedState.zoomPercent
+                        currentPage = restoredPage,
+                        zoomPercent = restoredZoom
                     )
                 }
             } else {
@@ -1006,8 +1023,8 @@ class ImtihanViewModel(
                                 localFilePath = path,
                                 isDownloading = false,
                                 errorMessage = null,
-                                currentPage = savedState.lastPage.coerceIn(1, maxOf(1, totalPages)),
-                                zoomPercent = savedState.zoomPercent
+                                currentPage = restoredPage,
+                                zoomPercent = restoredZoom
                             )
                         },
                         onFailure = { err ->
@@ -1015,8 +1032,8 @@ class ImtihanViewModel(
                                 localFilePath = null,
                                 isDownloading = false,
                                 errorMessage = err.message ?: "Unable to fetch PDF from Worker/B2.",
-                                currentPage = savedState.lastPage.coerceIn(1, maxOf(1, totalPages)),
-                                zoomPercent = savedState.zoomPercent
+                                currentPage = restoredPage,
+                                zoomPercent = restoredZoom
                             )
                         }
                     )
@@ -1028,9 +1045,10 @@ class ImtihanViewModel(
     fun updatePdfPosition(page: Int, totalPages: Int, zoomPercent: Int) {
         val pdfId = _activePdfId.value
         if (pdfId.isBlank()) return
-        _pdfViewerState.update { it.copy(currentPage = page, zoomPercent = zoomPercent) }
+        val clampedZoom = zoomPercent.coerceIn(100, 400)
+        _pdfViewerState.update { it.copy(currentPage = page, zoomPercent = clampedZoom) }
         viewModelScope.launch {
-            repository.savePdfReadingState(pdfId, page, totalPages, zoomPercent)
+            repository.savePdfReadingState(pdfId, page, totalPages, clampedZoom)
         }
     }
 

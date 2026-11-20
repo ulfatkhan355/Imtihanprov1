@@ -126,8 +126,8 @@ test('submission and publish state transitions enforce editorial rules', () => {
 
 test('summarizeClassCoverage represents Classes 9-12 honestly for KPK', () => {
   const summary = summarizeClassCoverage(INITIAL_ADMIN_DATASET.classes, 'KPK');
-  assert.equal(summary[10].coverageStatus, 'active_seed');
-  assert.equal(summary[11].coverageStatus, 'structure_ready');
+  assert.equal(summary[10].coverageStatus, 'structure_ready');
+  assert.equal(summary[11].coverageStatus, 'active_seed');
   assert.equal(summary[12].publishedChapters, 0);
 });
 

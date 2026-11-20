@@ -244,12 +244,10 @@ private fun RenderSingleBlock(
                     }
                 }
                 Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = block.plainNotation,
-                    fontFamily = ImtihanMonoFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = (15 * fontScaleMultiplier).sp,
-                    color = colors.textPrimary
+                OfflineLatexMathView(
+                    latex = block.latex,
+                    plainFallback = block.plainNotation,
+                    fontScaleMultiplier = fontScaleMultiplier
                 )
                 if (!block.caption.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(6.dp))
@@ -370,30 +368,50 @@ private fun RenderSingleBlock(
         }
 
         is ContentBlockUi.Diagram -> {
-            SilverBlueCard(elevated = true, modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = block.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = colors.textPrimary
-                )
+            var expandedDiagram by remember(block.id) { mutableStateOf(false) }
+            SilverBlueCard(
+                elevated = true,
+                onClick = { expandedDiagram = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = block.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = colors.textPrimary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = "TAP TO ZOOM",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.accentBlue
+                    )
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(120.dp)
+                        .height(132.dp)
                         .background(colors.canvasDeep, RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(12.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Outlined.Image,
                             contentDescription = block.altText,
-                            tint = colors.cyanPulse,
-                            modifier = Modifier.size(28.dp)
+                            tint = colors.accentBlue,
+                            modifier = Modifier.size(30.dp)
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Vector Schematic (${block.assetKey})",
+                            text = "Scientific Schematic · ${block.assetKey}",
                             style = MaterialTheme.typography.labelSmall,
                             color = colors.textSecondary
                         )
@@ -404,6 +422,58 @@ private fun RenderSingleBlock(
                     text = block.caption,
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textSecondary
+                )
+            }
+
+            if (expandedDiagram) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { expandedDiagram = false },
+                    title = { Text(block.title) },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(220.dp)
+                                    .background(colors.canvasDeep, RoundedCornerShape(14.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.padding(16.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Image,
+                                        contentDescription = block.altText,
+                                        tint = colors.accentBlue,
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Text(
+                                        text = block.assetKey,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = colors.accentBlue
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = block.altText,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = colors.textPrimary
+                                    )
+                                }
+                            }
+                            Text(
+                                text = block.caption,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textSecondary
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = { expandedDiagram = false }) {
+                            Text("Close")
+                        }
+                    }
                 )
             }
         }

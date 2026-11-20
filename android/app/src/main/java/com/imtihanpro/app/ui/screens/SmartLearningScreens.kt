@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,6 +46,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -58,6 +62,7 @@ import com.imtihanpro.app.domain.model.QuizHistoryItemUi
 import com.imtihanpro.app.domain.model.SmartInsightsUi
 import com.imtihanpro.app.domain.model.StudentBookmarkUi
 import com.imtihanpro.app.ui.audio.ImtihanFeedbackController
+import com.imtihanpro.app.ui.components.AnimatedProgressRing
 import com.imtihanpro.app.ui.components.ImtihanEmptyView
 import com.imtihanpro.app.ui.components.ImtihanProgressBar
 import com.imtihanpro.app.ui.components.SilverBlueCanvas
@@ -67,11 +72,12 @@ import com.imtihanpro.app.ui.theme.LocalImtihanColors
 import com.imtihanpro.app.ui.theme.urduTextStyle
 
 /**
- * Smart Insights Screen: Honest Exam Readiness, Weak Chapters Radar, Subject Mastery, Revision Recommendations
+ * Smart Insights Screen (Progress Tab): Honest Exam Readiness, Subject Mastery Bar Chart, Weak Chapters Radar
  */
 @Composable
 fun SmartInsightsScreen(
     insights: SmartInsightsUi,
+    showBackButton: Boolean = true,
     onBack: () -> Unit,
     onStartDiagnostic: () -> Unit,
     onOpenChapterNotes: (chapterId: String, subjectId: String) -> Unit,
@@ -80,184 +86,277 @@ fun SmartInsightsScreen(
     onOpenFlashcards: () -> Unit
 ) {
     val colors = LocalImtihanColors.current
+    var selectedSegment by remember { mutableIntStateOf(0) }
 
     SilverBlueCanvas {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                    .padding(horizontal = if (showBackButton) 8.dp else 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = colors.textPrimary)
+                if (showBackButton) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = colors.textPrimary)
+                    }
                 }
-                Text("Smart Learning Insights", style = MaterialTheme.typography.headlineSmall, color = colors.textPrimary)
+                Text("My Progress", style = MaterialTheme.typography.headlineSmall, color = colors.textPrimary)
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf("Overview", "Subjects").forEachIndexed { idx, label ->
+                    val selected = selectedSegment == idx
+                    Surface(
+                        onClick = { selectedSegment = idx },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (selected) colors.accentBlue else colors.cardSurface,
+                        border = BorderStroke(1.dp, if (selected) colors.accentBlue else colors.cardBorder)
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (selected) MaterialTheme.colorScheme.onPrimary else colors.textSecondary
+                            )
+                        }
+                    }
+                }
             }
 
             LazyColumn(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                item {
-                    SilverBlueCard(elevated = true, modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Exam Readiness Index", style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
-                            Icon(Icons.Outlined.Insights, contentDescription = null, tint = colors.accentBlue)
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        if (insights.readiness.readinessPercent == null) {
-                            Text(
-                                text = "Not enough data yet",
-                                style = MaterialTheme.typography.headlineSmall,
-                                color = colors.warningGold
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = insights.readiness.message,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.textSecondary
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Button(
-                                onClick = onStartDiagnostic,
-                                colors = ButtonDefaults.buttonColors(containerColor = colors.accentBlue)
+                if (selectedSegment == 0) {
+                    item {
+                        SilverBlueCard(elevated = true, modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Take Baseline Diagnostic")
-                            }
-                        } else {
-                            Text(
-                                text = "${insights.readiness.readinessPercent}% · ${insights.readiness.status.replace('_', ' ').uppercase()}",
-                                style = MaterialTheme.typography.headlineMedium,
-                                color = colors.success
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            ImtihanProgressBar(
-                                progress = insights.readiness.readinessPercent / 100f,
-                                fillColor = colors.success
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(insights.readiness.message, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
-                        }
-                    }
-                }
-
-                item {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SilverBlueCard(modifier = Modifier.weight(1f)) {
-                            Text("Overall Accuracy", style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
-                            Text(
-                                text = insights.overallAccuracyPercent?.let { "$it%" } ?: "—",
-                                style = MaterialTheme.typography.headlineSmall,
-                                color = colors.textPrimary
-                            )
-                            Text("${insights.totalQuizAttempts} attempt(s)", style = MaterialTheme.typography.bodySmall, color = colors.textMuted)
-                        }
-                        SilverBlueCard(onClick = onOpenMistakeMaster, modifier = Modifier.weight(1f)) {
-                            Text("Active Mistakes", style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
-                            Text(
-                                text = "${insights.activeMistakesCount}",
-                                style = MaterialTheme.typography.headlineSmall,
-                                color = if (insights.activeMistakesCount > 0) colors.danger else colors.success
-                            )
-                            Text("${insights.dueFlashcardsCount} cards due", style = MaterialTheme.typography.bodySmall, color = colors.accentBlue)
-                        }
-                    }
-                }
-
-                if (insights.recommendations.isNotEmpty()) {
-                    item {
-                        Text("Recommended Next Steps", style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
-                    }
-                    items(insights.recommendations, key = { it.id }) { rec ->
-                        SilverBlueCard(
-                            onClick = {
-                                when (rec.actionType) {
-                                    "review_mistakes" -> onOpenMistakeMaster()
-                                    "take_test" -> onStartChapterQuiz(rec.chapterId, rec.subjectId)
-                                    else -> onOpenChapterNotes(rec.chapterId, rec.subjectId)
+                                AnimatedProgressRing(
+                                    progress = (insights.readiness.readinessPercent ?: insights.overallAccuracyPercent ?: 0) / 100f,
+                                    size = 92.dp,
+                                    strokeWidth = 9.dp,
+                                    accentColor = if ((insights.readiness.readinessPercent ?: 0) >= 60) colors.success else colors.accentBlue,
+                                    centerLabel = insights.readiness.readinessPercent?.let { "$it%" }
+                                        ?: insights.overallAccuracyPercent?.let { "$it%" }
+                                        ?: "—",
+                                    centerCaption = "OVERALL"
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Exam Readiness Index",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = colors.textPrimary
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = if (insights.readiness.readinessPercent == null) {
+                                            insights.readiness.message
+                                        } else {
+                                            "${insights.readiness.status.replace('_', ' ').uppercase()} · ${insights.readiness.message}"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = colors.textSecondary
+                                    )
+                                    if (insights.readiness.readinessPercent == null) {
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Button(
+                                            onClick = onStartDiagnostic,
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = colors.accentBlue)
+                                        ) {
+                                            Text("Take Baseline Diagnostic")
+                                        }
+                                    }
                                 }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(rec.title, style = MaterialTheme.typography.titleSmall, color = colors.accentBlue)
-                            Text(rec.reason, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                            }
                         }
                     }
-                }
 
-                item {
-                    Text("Weak Chapters Radar", style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
-                }
-
-                if (insights.weakChapters.isEmpty()) {
                     item {
-                        SilverBlueCard(modifier = Modifier.fillMaxWidth()) {
-                            Text("No weak chapters flagged yet", style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
-                            Text("Weak chapters automatically appear when quiz accuracy < 70% or mistakes accumulate.", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            SilverBlueCard(modifier = Modifier.weight(1f)) {
+                                Text("Overall Accuracy", style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
+                                Text(
+                                    text = insights.overallAccuracyPercent?.let { "$it%" } ?: "—",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    color = colors.textPrimary
+                                )
+                                Text("${insights.totalQuizAttempts} attempt(s)", style = MaterialTheme.typography.bodySmall, color = colors.textMuted)
+                            }
+                            SilverBlueCard(onClick = onOpenMistakeMaster, modifier = Modifier.weight(1f)) {
+                                Text("Active Mistakes", style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
+                                Text(
+                                    text = "${insights.activeMistakesCount}",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    color = if (insights.activeMistakesCount > 0) colors.danger else colors.success
+                                )
+                                Text("${insights.dueFlashcardsCount} cards due", style = MaterialTheme.typography.bodySmall, color = colors.accentBlue)
+                            }
+                        }
+                    }
+
+                    if (insights.subjectAnalytics.isNotEmpty()) {
+                        item {
+                            SilverBlueCard(modifier = Modifier.fillMaxWidth()) {
+                                Text(
+                                    text = "Recorded Subject Mastery",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = colors.textPrimary
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                val bars = insights.subjectAnalytics.take(6)
+                                Canvas(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(110.dp)
+                                ) {
+                                    val count = bars.size.coerceAtLeast(1)
+                                    val slotWidth = size.width / count
+                                    val barWidth = (slotWidth * 0.52f).coerceAtMost(36.dp.toPx())
+                                    bars.forEachIndexed { idx, sub ->
+                                        val pct = (sub.masteryPercent ?: 0).coerceIn(0, 100) / 100f
+                                        val barHeight = (size.height - 10.dp.toPx()) * pct.coerceAtLeast(0.06f)
+                                        val x = idx * slotWidth + (slotWidth - barWidth) / 2f
+                                        val y = size.height - barHeight
+                                        drawRoundRect(
+                                            color = if (sub.masteryPercent == null) colors.cardBorder else colors.accentBlue,
+                                            topLeft = Offset(x, y),
+                                            size = Size(barWidth, barHeight),
+                                            cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceEvenly
+                                ) {
+                                    bars.forEach { sub ->
+                                        Text(
+                                            text = sub.subjectName.take(4),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = colors.textSecondary
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (insights.recommendations.isNotEmpty()) {
+                        item {
+                            Text("Recommended Next Steps", style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
+                        }
+                        items(insights.recommendations, key = { it.id }) { rec ->
+                            SilverBlueCard(
+                                onClick = {
+                                    when (rec.actionType) {
+                                        "review_mistakes" -> onOpenMistakeMaster()
+                                        "take_test" -> onStartChapterQuiz(rec.chapterId, rec.subjectId)
+                                        else -> onOpenChapterNotes(rec.chapterId, rec.subjectId)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(rec.title, style = MaterialTheme.typography.titleSmall, color = colors.accentBlue)
+                                Text(rec.reason, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                            }
+                        }
+                    }
+
+                    item {
+                        Text("Weak Chapters Radar", style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
+                    }
+
+                    if (insights.weakChapters.isEmpty()) {
+                        item {
+                            SilverBlueCard(modifier = Modifier.fillMaxWidth()) {
+                                Text("No weak chapters flagged yet", style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
+                                Text("Weak chapters automatically appear when quiz accuracy < 70% or mistakes accumulate.", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                            }
+                        }
+                    } else {
+                        items(insights.weakChapters, key = { it.chapterId }) { weak ->
+                            SilverBlueCard(modifier = Modifier.fillMaxWidth()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(weak.chapterTitle, style = MaterialTheme.typography.titleSmall, color = colors.textPrimary, modifier = Modifier.weight(1f))
+                                    Text(
+                                        text = weak.priority.uppercase(),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (weak.priority == "high") colors.danger else colors.warningGold
+                                    )
+                                }
+                                Text("${weak.subjectName} · ${weak.reason}", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(
+                                        onClick = { onOpenChapterNotes(weak.chapterId, weak.subjectId) },
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Revise Notes")
+                                    }
+                                    Button(
+                                        onClick = { onStartChapterQuiz(weak.chapterId, weak.subjectId) },
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = colors.accentBlue)
+                                    ) {
+                                        Text("Practice Quiz")
+                                    }
+                                }
+                            }
                         }
                     }
                 } else {
-                    items(insights.weakChapters, key = { it.chapterId }) { weak ->
-                        SilverBlueCard(modifier = Modifier.fillMaxWidth()) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(weak.chapterTitle, style = MaterialTheme.typography.titleSmall, color = colors.textPrimary, modifier = Modifier.weight(1f))
-                                Text(
-                                    text = weak.priority.uppercase(),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (weak.priority == "high") colors.danger else colors.warningGold
-                                )
-                            }
-                            Text("${weak.subjectName} · ${weak.reason}", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(
-                                    onClick = { onOpenChapterNotes(weak.chapterId, weak.subjectId) },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text("Revise Notes")
-                                }
-                                Button(
-                                    onClick = { onStartChapterQuiz(weak.chapterId, weak.subjectId) },
-                                    modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(containerColor = colors.accentBlue)
-                                ) {
-                                    Text("Practice Quiz")
-                                }
-                            }
+                    if (insights.subjectAnalytics.isEmpty()) {
+                        item {
+                            ImtihanEmptyView(
+                                title = "No Subject Attempts Yet",
+                                description = "Complete chapter quizzes or mock exams to unlock per-subject mastery analytics."
+                            )
                         }
-                    }
-                }
-
-                if (insights.subjectAnalytics.isNotEmpty()) {
-                    item {
-                        Text("Subject Mastery", style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
-                    }
-                    items(insights.subjectAnalytics, key = { it.subjectId }) { sub ->
-                        SilverBlueCard(modifier = Modifier.fillMaxWidth()) {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(sub.subjectName, style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
-                                Text(
-                                    text = sub.masteryPercent?.let { "$it%" } ?: "No quizzes",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = colors.accentBlue
-                                )
+                    } else {
+                        items(insights.subjectAnalytics, key = { it.subjectId }) { sub ->
+                            SilverBlueCard(modifier = Modifier.fillMaxWidth()) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(sub.subjectName, style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
+                                    Text(
+                                        text = sub.masteryPercent?.let { "$it%" } ?: "No quizzes",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = colors.accentBlue
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                ImtihanProgressBar(progress = (sub.masteryPercent ?: 0) / 100f)
                             }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            ImtihanProgressBar(progress = (sub.masteryPercent ?: 0) / 100f)
                         }
                     }
                 }
 
                 item {
-                    OutlinedButton(onClick = onOpenFlashcards, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = onOpenFlashcards,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Icon(Icons.Outlined.Style, contentDescription = null)
                         Spacer(modifier = Modifier.padding(4.dp))
                         Text("Open SM-2 Flashcard Deck (${insights.dueFlashcardsCount} due)")
@@ -416,7 +515,7 @@ fun BookmarksAndFlashcardsScreen(
                 if (selectedTab == 0) {
                     if (flashcards.isEmpty()) {
                         item {
-                            ImtihanEmptyView("No Flashcards Loaded", "Connect or switch to Class 9/10 to study key KPK cards.")
+                            ImtihanEmptyView("No Flashcards Loaded", "Connect or sync Class 11 KPK subjects to study key flashcards.")
                         }
                     } else {
                         val card = flashcards[clampedIdx]

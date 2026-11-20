@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+**/.dev.vars
+**/.local-admin.txt
+public/assets/aistudio/*.txt

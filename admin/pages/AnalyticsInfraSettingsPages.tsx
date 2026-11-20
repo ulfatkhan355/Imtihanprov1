@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, CloudOff, RefreshCw, Save, Server } from 'lucide-react';
-import type { AdminInfrastructureStatusResponse, BoardCode } from '../../shared-contracts/types';
+import { CheckCircle2, CloudOff, RefreshCw, Save, Server, ShieldCheck } from 'lucide-react';
+import type {
+  AdminInfrastructureStatusResponse,
+  AdminUserProfile,
+  BoardCode,
+} from '../../shared-contracts/types';
 import { validateApiBaseUrl } from '../../shared-contracts/rules';
 import type { AdminConnectionMode, AdminDataset, AdminSettingsState } from '../types/admin';
 import { StageMockNotice, StatusIndicator } from '../components/StateBanner';
@@ -11,8 +15,14 @@ interface AnalyticsInfraSettingsProps {
   connectionMode: AdminConnectionMode;
   settings: AdminSettingsState;
   infraStatus: AdminInfrastructureStatusResponse | null;
+  adminUsers?: AdminUserProfile[];
+  currentAdmin?: AdminUserProfile | null;
   onRefreshInfra?: () => Promise<void>;
   onSaveSettings: (next: AdminSettingsState) => Promise<void> | void;
+  onUpdateAdminRole?: (
+    adminId: string,
+    payload: { role?: AdminUserProfile['role']; isActive?: boolean }
+  ) => Promise<void>;
 }
 
 export function AnalyticsInfraSettingsPages({
@@ -21,8 +31,11 @@ export function AnalyticsInfraSettingsPages({
   connectionMode,
   settings,
   infraStatus,
+  adminUsers = [],
+  currentAdmin = null,
   onRefreshInfra,
   onSaveSettings,
+  onUpdateAdminRole,
 }: AnalyticsInfraSettingsProps) {
   const [draftSettings, setDraftSettings] = useState<AdminSettingsState>(settings);
   const [analyticsClassFilter, setAnalyticsClassFilter] = useState<'all' | 9 | 10 | 11 | 12>('all');
@@ -219,7 +232,7 @@ export function AnalyticsInfraSettingsPages({
           },
           {
             component: 'Cloudflare D1 Database (imtihan-pro-db)',
-            scope: 'ID: 079128c1-203b-477b-8c4b-d6b34daf8bbe',
+            scope: 'ID: b02fce90-8596-49e0-a79b-6ae3a427fff0',
             status: 'Configured Binding',
             tone: 'info' as const,
             detail: 'Apply migrations with wrangler d1 migrations apply imtihan-pro-db',
@@ -546,6 +559,112 @@ export function AnalyticsInfraSettingsPages({
           </button>
         </div>
       </form>
+
+      <section className="rounded-xl border border-[#CBD8EE] bg-white p-6 space-y-4 dark:border-[#223B70] dark:bg-[#0D1B38]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <ShieldCheck className="h-5 w-5 text-[#1D4ED8] dark:text-[#60A5FA]" />
+            <div>
+              <h2 className="font-display text-base font-semibold text-[#0F172A] dark:text-white">
+                Admin Accounts &amp; RBAC Roles
+              </h2>
+              <p className="text-xs text-[#64748B] dark:text-[#8FA7D1]">
+                Role-based permissions: <span className="font-mono">super_admin</span>,{' '}
+                <span className="font-mono">admin</span>, and{' '}
+                <span className="font-mono">reviewer</span>.
+              </p>
+            </div>
+          </div>
+          {currentAdmin && (
+            <StatusIndicator
+              label={`Signed in: ${currentAdmin.role}`}
+              tone={currentAdmin.role === 'super_admin' ? 'success' : 'info'}
+            />
+          )}
+        </div>
+
+        {connectionMode !== 'live_api' ? (
+          <p className="text-xs text-[#64748B] dark:text-[#8FA7D1]">
+            Connect to the live Cloudflare Worker to view and manage D1 admin operator accounts.
+          </p>
+        ) : adminUsers.length === 0 ? (
+          <p className="text-xs text-[#64748B] dark:text-[#8FA7D1]">
+            No admin accounts loaded yet.
+          </p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-[#E2E8F0] dark:border-[#1B3263]">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#F8FAFE] text-[#475569] dark:bg-[#091530] dark:text-[#8FA7D1]">
+                <tr>
+                  <th className="px-4 py-2.5">Operator</th>
+                  <th className="px-4 py-2.5">Email</th>
+                  <th className="px-4 py-2.5">Role</th>
+                  <th className="px-4 py-2.5">Account State</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E2E8F0] dark:divide-[#1B3263]">
+                {adminUsers.map((u) => {
+                  const canEdit =
+                    currentAdmin?.role === 'super_admin' &&
+                    Boolean(onUpdateAdminRole) &&
+                    u.id !== currentAdmin.id;
+                  return (
+                    <tr key={u.id}>
+                      <td className="px-4 py-3 font-medium text-[#0F172A] dark:text-white">
+                        {u.displayName}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-[#475569] dark:text-[#94A8CE]">
+                        {u.email}
+                      </td>
+                      <td className="px-4 py-3">
+                        {canEdit ? (
+                          <select
+                            aria-label={`Role for ${u.email}`}
+                            value={u.role}
+                            onChange={(e) =>
+                              void onUpdateAdminRole?.(u.id, {
+                                role: e.target.value as AdminUserProfile['role'],
+                              })
+                            }
+                            className="h-8 px-2 rounded border border-[#CBD8EE] bg-white text-xs text-[#0F172A] dark:border-[#24407A] dark:bg-[#091530] dark:text-white"
+                          >
+                            <option value="reviewer">reviewer</option>
+                            <option value="admin">admin</option>
+                            <option value="super_admin">super_admin</option>
+                          </select>
+                        ) : (
+                          <span className="font-mono text-[#1D4ED8] dark:text-[#60A5FA]">
+                            {u.role}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <StatusIndicator
+                            label={u.isActive === false ? 'Suspended' : 'Active'}
+                            tone={u.isActive === false ? 'danger' : 'success'}
+                          />
+                          {canEdit && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void onUpdateAdminRole?.(u.id, { isActive: u.isActive === false })
+                              }
+                              className="text-[11px] font-semibold text-[#1D4ED8] hover:underline dark:text-[#60A5FA]"
+                            >
+                              {u.isActive === false ? 'Reactivate' : 'Suspend'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

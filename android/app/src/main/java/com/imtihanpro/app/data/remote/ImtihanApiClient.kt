@@ -13,6 +13,7 @@ import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.net.URLEncoder
+import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
 sealed interface ApiResult<out T> {
@@ -119,7 +120,7 @@ object ApiContentJsonParser {
             list.add(
                 ApiSubjectDto(
                     id = o.getString("id"),
-                    classLevel = o.optInt("classLevel", 9),
+                    classLevel = o.optInt("classLevel", 11),
                     boardCode = o.optString("boardCode", "KPK"),
                     code = o.optString("code", ""),
                     name = o.getString("name"),
@@ -384,14 +385,18 @@ object ApiContentJsonParser {
     }
 
     private fun parseSingleMcq(o: JSONObject): ApiMcqQuestionDto {
+        val rawCorrect = o.optString("correctOptionId")
+        val correctOpt = if (o.isNull("correctOptionId") || rawCorrect.isBlank() || rawCorrect == "null") null else rawCorrect
+        val rawExp = o.optString("explanation")
+        val exp = if (o.isNull("explanation") || rawExp.isBlank() || rawExp == "null") null else rawExp
         return ApiMcqQuestionDto(
             id = o.getString("id"),
             chapterId = o.getString("chapterId"),
             subjectId = o.optString("subjectId", ""),
             question = o.getString("question"),
             options = parseOptions(o.optJSONArray("options")),
-            correctOptionId = o.optString("correctOptionId", "A"),
-            explanation = o.optString("explanation", ""),
+            correctOptionId = correctOpt,
+            explanation = exp,
             difficulty = o.optString("difficulty", "medium"),
             topicTitle = o.optString("topicTitle", "Core Concepts"),
             pastPaperYear = if (o.has("pastPaperYear") && !o.isNull("pastPaperYear")) o.optInt("pastPaperYear") else null,
@@ -409,7 +414,7 @@ object ApiContentJsonParser {
                 ApiPastPaperDto(
                     id = o.getString("id"),
                     boardCode = o.optString("boardCode", "KPK"),
-                    classLevel = o.optInt("classLevel", 9),
+                    classLevel = o.optInt("classLevel", 11),
                     subjectId = o.optString("subjectId", ""),
                     subjectName = o.optString("subjectName", "Subject"),
                     year = o.optInt("year", 2022),
@@ -432,7 +437,7 @@ object ApiContentJsonParser {
                     id = o.getString("id"),
                     title = o.optString("title", ""),
                     category = o.optString("category", "past_paper"),
-                    classLevel = o.optInt("classLevel", 9),
+                    classLevel = o.optInt("classLevel", 11),
                     boardCode = o.optString("boardCode", "KPK"),
                     subjectId = o.optString("subjectId", ""),
                     objectKey = o.optString("objectKey", ""),
@@ -478,7 +483,7 @@ object ApiContentJsonParser {
         val resolvedId = o.optString("localProfileId", "").ifBlank { o.optString("studentId", "") }
         return ApiStudentProgressDto(
             studentId = resolvedId,
-            selectedClass = o.optInt("selectedClass", 9),
+            selectedClass = o.optInt("selectedClass", 11),
             selectedBoard = o.optString("selectedBoard", "KPK"),
             studyHoursTotal = o.optDouble("studyHoursTotal", 0.0),
             dailyGoalPercent = o.optInt("dailyGoalPercent", 0),
@@ -536,9 +541,17 @@ object ApiContentJsonParser {
         } else {
             ApiAdPlacementConfigDto()
         }
+        val availArr = o.optJSONArray("availableClassLevels")
+        val availableClasses = if (availArr != null && availArr.length() > 0) {
+            (0 until availArr.length()).map { availArr.optInt(it, 11) }
+        } else {
+            listOf(11)
+        }
         return ApiPublicRuntimeConfigDto(
             defaultBoardCode = o.optString("defaultBoardCode", "KPK"),
-            defaultClassLevel = o.optInt("defaultClassLevel", 9),
+            defaultClassLevel = o.optInt("defaultClassLevel", 11),
+            availableClassLevels = availableClasses,
+            defaultStudyGroup = o.optString("defaultStudyGroup", "PRE_MEDICAL"),
             kpkSubBoards = subBoards,
             studyGroups = groups,
             adPlacement = adPolicy,
@@ -555,7 +568,7 @@ object ApiContentJsonParser {
                     id = o.getString("id"),
                     title = o.optString("title", ""),
                     mode = o.optString("mode", "full_mock_exam"),
-                    classLevel = o.optInt("classLevel", 9),
+                    classLevel = o.optInt("classLevel", 11),
                     boardCode = o.optString("boardCode", "KPK"),
                     subjectId = o.optString("subjectId").takeIf { it.isNotEmpty() && it != "null" },
                     questionCount = o.optInt("questionCount", 12),
@@ -819,7 +832,7 @@ object ApiContentJsonParser {
                 rank = l.optInt("rank", i + 1),
                 aliasHandle = l.optString("aliasHandle", "Scholar"),
                 boardCode = l.optString("boardCode", "KPK"),
-                classLevel = l.optInt("classLevel", 9),
+                classLevel = l.optInt("classLevel", 11),
                 xpTotal = l.optInt("xpTotal", 0),
                 streakDays = l.optInt("streakDays", 0),
                 isCurrentUser = l.optBoolean("isCurrentUser", false)
@@ -1065,7 +1078,7 @@ class ImtihanApiClient(
         selectedClass: Int,
         selectedBoard: String,
         selectedSubBoard: String = "PESHAWAR",
-        studyGroup: String = "SCIENCE_BIOLOGY",
+        studyGroup: String = "PRE_MEDICAL",
         language: String = "en"
     ): ApiResult<ApiAuthSessionDto> {
         val payload = JSONObject()
@@ -1092,7 +1105,7 @@ class ImtihanApiClient(
         selectedClass: Int,
         selectedBoard: String,
         selectedSubBoard: String = "PESHAWAR",
-        studyGroup: String = "SCIENCE_BIOLOGY",
+        studyGroup: String = "PRE_MEDICAL",
         language: String = "en"
     ): ApiResult<ApiAuthSessionDto> {
         val payload = JSONObject()
@@ -1109,6 +1122,21 @@ class ImtihanApiClient(
             .build()
         return executeJson(req) { envelope ->
             ApiContentJsonParser.parseAuthSession(envelope.getJSONObject("data"))
+        }
+    }
+
+    suspend fun fetchStudentProgress(
+        baseUrl: String,
+        guestDeviceId: String,
+        bearerToken: String?
+    ): ApiResult<ApiStudentProgressDto> {
+        val req = Request.Builder()
+            .url("${ApiConfig.normalizeBaseUrl(baseUrl)}/students/me/progress")
+            .withStudentAuth(guestDeviceId, bearerToken)
+            .get()
+            .build()
+        return executeJson(req) { envelope ->
+            ApiContentJsonParser.parseStudentProgress(envelope.getJSONObject("data"))
         }
     }
 
@@ -1208,6 +1236,26 @@ class ImtihanApiClient(
             .post(payload.toString().toRequestBody(jsonMediaType))
         return executeJson(builder.build()) { envelope ->
             val d = envelope.getJSONObject("data")
+            val fbArr = d.optJSONArray("perQuestionFeedback")
+            val feedback = mutableListOf<ApiQuizQuestionFeedbackDto>()
+            if (fbArr != null) {
+                for (i in 0 until fbArr.length()) {
+                    val f = fbArr.getJSONObject(i)
+                    val rawSel = f.optString("selectedOptionId")
+                    val selOpt = if (f.isNull("selectedOptionId") || rawSel.isBlank() || rawSel == "null") null else rawSel
+                    val rawCorr = f.optString("correctOptionId")
+                    val corrOpt = if (f.isNull("correctOptionId") || rawCorr.isBlank() || rawCorr == "null") null else rawCorr
+                    feedback.add(
+                        ApiQuizQuestionFeedbackDto(
+                            mcqId = f.optString("mcqId", ""),
+                            selectedOptionId = selOpt,
+                            isCorrect = f.optBoolean("isCorrect", false),
+                            correctOptionId = corrOpt,
+                            explanation = f.optString("explanation", "")
+                        )
+                    )
+                }
+            }
             ApiQuizSubmissionResultDto(
                 submissionId = d.optString("submissionId", ""),
                 totalQuestions = d.optInt("totalQuestions", 0),
@@ -1220,7 +1268,8 @@ class ImtihanApiClient(
                 totalMarks = d.optDouble("totalMarks", d.optInt("totalQuestions", 0).toDouble()),
                 passed = d.optBoolean("passed", false),
                 passPercentage = d.optInt("passPercentage", passPercentage),
-                xpEarned = d.optInt("xpEarned", 0)
+                xpEarned = d.optInt("xpEarned", 0),
+                perQuestionFeedback = feedback
             )
         }
     }
@@ -1512,17 +1561,33 @@ class ImtihanApiClient(
 
     /**
      * Streams a real PDF from Worker `/v1/pdfs/{pdfId}/download` (backed by Backblaze B2)
-     * into a temporary file, validates the `%PDF-` signature, and atomically renames to targetFile.
+     * into a temporary file (supporting HTTP Range resume when `.tmp` partial bytes exist),
+     * reports real transfer progress, validates `%PDF-` + optional SHA-256, and atomically moves to targetFile.
      */
     suspend fun downloadPdfToFile(
         baseUrl: String,
         pdfId: String,
-        targetFile: File
+        targetFile: File,
+        expectedSha256: String? = null,
+        onProgress: (bytesRead: Long, totalBytes: Long) -> Unit = { _, _ -> }
     ): ApiResult<File> = withContext(Dispatchers.IO) {
         val url = "${ApiConfig.normalizeBaseUrl(baseUrl)}/pdfs/${encode(pdfId)}/download?mode=stream"
-        val request = Request.Builder().url(url).get().build()
+        targetFile.parentFile?.mkdirs()
+        val tmpFile = File(targetFile.parentFile, "${targetFile.name}.tmp")
+        val existingBytes = if (tmpFile.exists() && tmpFile.length() > 0L) tmpFile.length() else 0L
+
+        val reqBuilder = Request.Builder().url(url).get()
+        if (existingBytes > 0L) {
+            reqBuilder.header("Range", "bytes=$existingBytes-")
+        }
+
         try {
-            httpClient.newCall(request).execute().use { response ->
+            httpClient.newCall(reqBuilder.build()).execute().use { response ->
+                // If Range was rejected (416), discard partial tmp file cleanly
+                if (response.code == 416 && tmpFile.exists()) {
+                    tmpFile.delete()
+                    return@withContext ApiResult.Failure("Partial PDF cache expired; please retry download.", 416, "RANGE_RESET")
+                }
                 if (!response.isSuccessful) {
                     val bodyText = response.body?.string().orEmpty()
                     return@withContext parseErrorFailure(response.code, bodyText)
@@ -1530,26 +1595,48 @@ class ImtihanApiClient(
                 val body = response.body
                     ?: return@withContext ApiResult.Failure("Empty PDF response from server.", response.code, "EMPTY_BODY")
 
-                targetFile.parentFile?.mkdirs()
-                val tmpFile = File(targetFile.parentFile, "${targetFile.name}.tmp")
-                var totalBytes = 0L
-                val header = ByteArray(5)
-                var headerRead = 0
+                val appendMode = response.code == 206 && existingBytes > 0L
+                val remainingLength = body.contentLength()
+                val expectedTotalBytes = if (remainingLength > 0L) {
+                    if (appendMode) existingBytes + remainingLength else remainingLength
+                } else {
+                    -1L
+                }
+                var transferredBytes = if (appendMode) existingBytes else 0L
 
                 body.byteStream().use { input ->
-                    FileOutputStream(tmpFile).use { output ->
+                    FileOutputStream(tmpFile, appendMode).use { output ->
                         val buffer = ByteArray(8192)
                         while (true) {
                             val read = input.read(buffer)
                             if (read == -1) break
-                            if (headerRead < 5) {
-                                val toCopy = minOf(5 - headerRead, read)
-                                System.arraycopy(buffer, 0, header, headerRead, toCopy)
-                                headerRead += toCopy
-                            }
                             output.write(buffer, 0, read)
-                            totalBytes += read
+                            transferredBytes += read
+                            onProgress(transferredBytes, expectedTotalBytes)
                         }
+                    }
+                }
+
+                if (!tmpFile.exists() || tmpFile.length() <= 5L) {
+                    tmpFile.delete()
+                    return@withContext ApiResult.Failure("Downloaded PDF is empty.", 502, "EMPTY_PDF")
+                }
+
+                // Verify %PDF- header + compute SHA-256 over the complete assembled file
+                val digest = MessageDigest.getInstance("SHA-256")
+                val header = ByteArray(5)
+                var headerRead = 0
+                tmpFile.inputStream().use { verifyIn ->
+                    val buf = ByteArray(8192)
+                    while (true) {
+                        val n = verifyIn.read(buf)
+                        if (n == -1) break
+                        if (headerRead < 5) {
+                            val copyLen = minOf(5 - headerRead, n)
+                            System.arraycopy(buf, 0, header, headerRead, copyLen)
+                            headerRead += copyLen
+                        }
+                        digest.update(buf, 0, n)
                     }
                 }
 
@@ -1562,9 +1649,18 @@ class ImtihanApiClient(
                         "INVALID_PDF_STREAM"
                     )
                 }
-                if (totalBytes <= 0L) {
-                    tmpFile.delete()
-                    return@withContext ApiResult.Failure("Downloaded PDF is empty.", 502, "EMPTY_PDF")
+
+                val normalizedExpected = expectedSha256?.trim()?.lowercase()
+                if (!normalizedExpected.isNullOrBlank() && Regex("^[0-9a-f]{64}$").matches(normalizedExpected)) {
+                    val actualHex = digest.digest().joinToString("") { "%02x".format(it) }
+                    if (actualHex != normalizedExpected) {
+                        tmpFile.delete()
+                        return@withContext ApiResult.Failure(
+                            "Downloaded PDF failed SHA-256 integrity verification.",
+                            502,
+                            "CHECKSUM_MISMATCH"
+                        )
+                    }
                 }
 
                 if (targetFile.exists()) targetFile.delete()

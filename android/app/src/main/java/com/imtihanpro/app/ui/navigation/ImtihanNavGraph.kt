@@ -133,7 +133,7 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
         Routes.HOME,
         Routes.SUBJECTS,
         Routes.PRACTICE,
-        Routes.PAPERS,
+        Routes.SMART_INSIGHTS,
         Routes.PROFILE
     )
 
@@ -201,9 +201,13 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                     initialSubBoard = shellState.selectedSubBoardCode,
                     initialStudyGroup = shellState.studyGroupCode,
                     initialLanguage = shellState.languageCode,
+                    initialDailyTargetMinutes = shellState.dailyTargetMinutes,
                     initialName = if (shellState.hasCompletedSetup) shellState.profile.displayName else "",
                     canNavigateBack = shellState.hasCompletedSetup,
                     onBack = { navController.popBackStack() },
+                    onUpdateDailyTarget = { mins ->
+                        viewModel.updateStudyGoals(mins, shellState.examCountdownDateIso, shellState.reminderHourLocal)
+                    },
                     onStartAsGuest = { cls, board, subBoard, group, lang, name, launchDiagnostic ->
                         viewModel.completeFirstTimeSetup(
                             classLevel = cls,
@@ -254,7 +258,7 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                     searchResults = searchResults,
                     continueChapterTitle = selectedChapter?.let {
                         "Chapter ${it.chapterNumber}: ${it.title}"
-                    } ?: "Chapter 1: Physical Quantities & Measurement",
+                    } ?: "Chapter 1: Measurements",
                     feedback = feedback,
                     onSearchChange = viewModel::updateSearchQuery,
                     onContinueLearning = { navController.navigate(Routes.WORKSPACE) },
@@ -273,6 +277,16 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                         navController.navigate(Routes.pdfReader(pdf.id, pdf.id, pdf.title, pdf.pageCount))
                     },
                     onOpenMcqPractice = { navController.navigate(Routes.PRACTICE) },
+                    onOpenPapers = {
+                        viewModel.setPdfCategoryFilter(null)
+                        navController.navigate(Routes.PAPERS)
+                    },
+                    onOpenTextbooks = {
+                        viewModel.setPdfCategoryFilter("textbook")
+                        navController.navigate(Routes.PAPERS)
+                    },
+                    onOpenNotes = { navController.navigate(Routes.DETAILED_NOTES) },
+                    onOpenClassBoardSetup = { navController.navigate(Routes.SETUP) },
                     onOpenAiTutor = { navController.navigate(Routes.AI_TUTOR) },
                     onOpenSmartInsights = { navController.navigate(Routes.SMART_INSIGHTS) },
                     onOpenStudyPlanner = { navController.navigate(Routes.STUDY_PLANNER) },
@@ -567,6 +581,7 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                     ?.name ?: selectedSubject?.name ?: "KPK Board Quiz"
                 QuizResultsScreen(
                     result = quizState.latestResult,
+                    isSubmitting = quizState.isSubmitting,
                     studentName = shellState.profile.displayName,
                     boardLabel = "${shellState.selectedBoardCode} · ${shellState.selectedSubBoardCode}",
                     classLevel = shellState.selectedClassLevel,
@@ -650,7 +665,8 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                     onToggleDownloadPdf = { pdf ->
                         viewModel.toggleDownloadPaper(pdf.id, pdf.title, pdf.sizeMb)
                     },
-                    onBannerDisplayed = viewModel::recordBannerImpression
+                    onBannerDisplayed = viewModel::recordBannerImpression,
+                    onBack = { navController.popBackStack() }
                 )
             }
 
@@ -722,6 +738,7 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
             composable(Routes.SMART_INSIGHTS) {
                 SmartInsightsScreen(
                     insights = smartInsights,
+                    showBackButton = false,
                     onBack = { navController.popBackStack() },
                     onStartDiagnostic = {
                         viewModel.startDiagnosticAssessment {

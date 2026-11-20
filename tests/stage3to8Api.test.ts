@@ -19,60 +19,95 @@ async function jsonReq(
   return { status: res.status, headers: res.headers, body };
 }
 
-test('Class 9 KPK starter catalog, study group filtering, search, and runtime config', async () => {
+test('Class 11 KPK production catalog, public availability, study group filtering, search, and runtime config', async () => {
   const { env } = createTestD1Env();
 
   const cfg = await jsonReq(env, '/v1/config');
   assert.equal(cfg.status, 200);
-  assert.equal(cfg.body.data.defaultClassLevel, 9);
+  assert.equal(cfg.body.data.defaultClassLevel, 11);
+  assert.deepEqual(cfg.body.data.availableClassLevels, [11]);
+  assert.equal(cfg.body.data.defaultStudyGroup, 'PRE_MEDICAL');
   assert.equal(cfg.body.data.kpkSubBoards.length, 8);
   assert.equal(cfg.body.data.adPlacement.enabled, false);
   assert.equal(cfg.body.data.aiTutorConfigured, false);
 
-  const bioSubjects = await jsonReq(env, '/v1/subjects?board=KPK&classLevel=9&studyGroup=SCIENCE_BIOLOGY');
-  assert.equal(bioSubjects.status, 200);
-  const phy9 = bioSubjects.body.data.find((s: any) => s.code === 'PHY-09');
-  assert.ok(phy9);
-  assert.ok(phy9.pairingSchemeSummary);
-  assert.ok(bioSubjects.body.data.some((s: any) => s.code === 'BIO-09'));
-  assert.ok(!bioSubjects.body.data.some((s: any) => s.code === 'CS-09'));
+  const classesRes = await jsonReq(env, '/v1/classes?board=KPK');
+  assert.equal(classesRes.status, 200);
+  const c11 = classesRes.body.data.find((c: any) => c.level === 11);
+  const c9 = classesRes.body.data.find((c: any) => c.level === 9);
+  assert.equal(c11?.isPublicAvailable, true);
+  assert.equal(c9?.isPublicAvailable, false);
 
-  const phyChapters = await jsonReq(env, '/v1/subjects/sub_kpk9_phy/chapters');
+  const preMedSubjects = await jsonReq(env, '/v1/subjects?board=KPK&classLevel=11&studyGroup=PRE_MEDICAL');
+  assert.equal(preMedSubjects.status, 200);
+  const phy11 = preMedSubjects.body.data.find((s: any) => s.code === 'PHY-11');
+  assert.ok(phy11);
+  assert.ok(phy11.pairingSchemeSummary);
+  assert.ok(preMedSubjects.body.data.some((s: any) => s.code === 'BIO-11'));
+  assert.ok(preMedSubjects.body.data.some((s: any) => s.code === 'CHM-11'));
+  assert.ok(!preMedSubjects.body.data.some((s: any) => s.code === 'CS-11'));
+
+  const phyChapters = await jsonReq(env, '/v1/subjects/sub_kpk11_phy/chapters');
   assert.equal(phyChapters.status, 200);
-  const ch1 = phyChapters.body.data.find((c: any) => c.id === 'ch_phy9_01');
+  const ch1 = phyChapters.body.data.find((c: any) => c.id === 'ch_phy11_01');
   assert.ok(ch1);
   assert.ok(ch1.titleUrdu);
   assert.ok(typeof ch1.boardWeightageMarks === 'number' && ch1.boardWeightageMarks > 0);
   assert.ok(ch1.nightBeforeSummary);
 
-  const csSubjects = await jsonReq(env, '/v1/subjects?board=KPK&classLevel=9&studyGroup=SCIENCE_CS');
-  assert.equal(csSubjects.status, 200);
-  assert.ok(csSubjects.body.data.some((s: any) => s.code === 'CS-09'));
-  assert.ok(!csSubjects.body.data.some((s: any) => s.code === 'BIO-09'));
+  const icsSubjects = await jsonReq(env, '/v1/subjects?board=KPK&classLevel=11&studyGroup=ICS');
+  assert.equal(icsSubjects.status, 200);
+  assert.ok(icsSubjects.body.data.some((s: any) => s.code === 'CS-11'));
+  assert.ok(icsSubjects.body.data.some((s: any) => s.code === 'MTH-11'));
+  assert.ok(!icsSubjects.body.data.some((s: any) => s.code === 'BIO-11'));
 
-  const search = await jsonReq(env, '/v1/search?q=Vernier&board=KPK&classLevel=9');
+  const icomSubjects = await jsonReq(env, '/v1/subjects?board=KPK&classLevel=11&studyGroup=ICOM');
+  assert.equal(icomSubjects.status, 200);
+  assert.ok(icomSubjects.body.data.some((s: any) => s.code === 'ACC-11'));
+  assert.ok(icomSubjects.body.data.some((s: any) => s.code === 'ECO-11'));
+
+  const search = await jsonReq(env, '/v1/search?q=Radian&board=KPK&classLevel=11');
   assert.equal(search.status, 200);
   assert.ok(search.body.data.topics.length >= 1 || search.body.data.mcqs.length >= 1);
 
-  const textbooks = await jsonReq(env, '/v1/pdfs?board=KPK&classLevel=9&category=textbook');
+  const textbooks = await jsonReq(env, '/v1/pdfs?board=KPK&classLevel=11&category=textbook');
   assert.equal(textbooks.status, 200);
   assert.ok(textbooks.body.data.length >= 1);
 });
 
-test('Stage 4-7 student journey: exam start, grading, mistakes, flashcards, insights, planner, motivation, leaderboard', async () => {
+test('Stage 4-7 student journey: server-side exam key stripping, authoritative grading, mistakes, flashcards, insights, planner, leaderboard, RBAC', async () => {
   const { env } = createTestD1Env();
 
-  // Guest auth defaults to Class 9 and binds Peshawar + Science Biology
+  // Bootstrap admin to read ground-truth keys for test assertions and test RBAC user management
+  const boot = await jsonReq(env, '/v1/admin/bootstrap', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      bootstrapSecret: 'test-bootstrap-secret-1234',
+      email: 'lead@imtihan.pk',
+      displayName: 'Lead Admin',
+      password: 'StrongPassword123!',
+    }),
+  });
+  assert.equal(boot.status, 201);
+  const adminToken = boot.body.data.token as string;
+  const adminHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` };
+
+  const adminUsersRes = await jsonReq(env, '/v1/admin/users', { headers: adminHeaders });
+  assert.equal(adminUsersRes.status, 200);
+  assert.equal(adminUsersRes.body.data.length, 1);
+
+  // Guest auth defaults to Class 11 KPK and binds Peshawar + Pre-Medical
   const guest = await jsonReq(env, '/v1/auth/guest', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      guestDeviceId: 'kpk9-student-01',
+      guestDeviceId: 'kpk11-student-01',
       displayName: 'Ayesha',
       selectedBoard: 'KPK',
-      selectedClass: 9,
+      selectedClass: 11,
       selectedSubBoard: 'PESHAWAR',
-      studyGroup: 'SCIENCE_BIOLOGY',
+      studyGroup: 'PRE_MEDICAL',
       language: 'en',
     }),
   });
@@ -86,50 +121,74 @@ test('Stage 4-7 student journey: exam start, grading, mistakes, flashcards, insi
   assert.equal(initialInsights.body.data.readinessPercent, null);
   assert.equal(initialInsights.body.data.readinessStatus, 'insufficient_data');
 
-  // Exam patterns exist
-  const patterns = await jsonReq(env, '/v1/exams/patterns?board=KPK&classLevel=9');
+  // Exam patterns exist for Class 11 KPK
+  const patterns = await jsonReq(env, '/v1/exams/patterns?board=KPK&classLevel=11');
   assert.equal(patterns.status, 200);
   assert.ok(patterns.body.data.length >= 3);
 
-  // Start Physics 9 Chapter 1 exam
+  // Load ground-truth MCQs as admin ONLY for composing test answers
+  const adminMcqsRes = await jsonReq(env, '/v1/admin/mcqs?chapterId=ch_phy11_01', { headers: adminHeaders });
+  assert.equal(adminMcqsRes.status, 200);
+  const keyMap = new Map<string, string>(
+    (adminMcqsRes.body.data as Array<any>).map((m) => [m.id, m.correctOptionId])
+  );
+
+  // Start Physics 11 Chapter 1 exam and verify answer keys are stripped from public exam response
   const examStart = await jsonReq(env, '/v1/exams/start', {
     method: 'POST',
     headers: auth,
     body: JSON.stringify({
       mode: 'chapter_test',
       boardCode: 'KPK',
-      classLevel: 9,
-      subjectId: 'sub_kpk9_phy',
-      chapterId: 'ch_phy9_01',
+      classLevel: 11,
+      subjectId: 'sub_kpk11_phy',
+      chapterId: 'ch_phy11_01',
       questionCount: 4,
     }),
   });
   assert.equal(examStart.status, 200);
   const mcqs = examStart.body.data.mcqs as Array<any>;
   assert.ok(mcqs.length >= 3);
+  for (const m of mcqs) {
+    assert.equal(m.correctOptionId, null);
+    assert.equal(m.explanation, null);
+    assert.equal(m.explanationUrdu, undefined);
+  }
 
-  // Submit round 0 (1 wrong on first question to populate Mistake Master), then verify active mistake, then round 1 to master it
+  // Submit round 0 (1 wrong on first question to populate Mistake Master), verify perQuestionFeedback + active mistake, then round 1 to master it
   for (let round = 0; round < 2; round++) {
-    const answers = mcqs.map((m, idx) => ({
-      mcqId: m.id,
-      selectedOptionId:
-        round === 0 && idx === 0
-          ? m.correctOptionId === 'A'
-            ? 'B'
-            : 'A'
-          : m.correctOptionId,
-      markedForReview: idx === 0,
-    }));
+    const startRes = await jsonReq(env, '/v1/exams/start', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        mode: 'chapter_test',
+        boardCode: 'KPK',
+        classLevel: 11,
+        subjectId: 'sub_kpk11_phy',
+        chapterId: 'ch_phy11_01',
+        questionCount: 4,
+      }),
+    });
+    const sessionMcqs = startRes.body.data.mcqs as Array<any>;
+    const answers = sessionMcqs.map((m, idx) => {
+      const actualKey = keyMap.get(m.id) || 'A';
+      return {
+        mcqId: m.id,
+        selectedOptionId:
+          round === 0 && idx === 0 ? (actualKey === 'A' ? 'B' : 'A') : actualKey,
+        markedForReview: idx === 0,
+      };
+    });
 
     const sub = await jsonReq(env, '/v1/quizzes/submissions', {
       method: 'POST',
       headers: auth,
       body: JSON.stringify({
-        sessionId: `${examStart.body.data.sessionId}_r${round}`,
+        sessionId: startRes.body.data.sessionId,
         studentId: null,
-        guestDeviceId: 'kpk9-student-01',
-        subjectId: 'sub_kpk9_phy',
-        chapterId: 'ch_phy9_01',
+        guestDeviceId: 'kpk11-student-01',
+        subjectId: 'sub_kpk11_phy',
+        chapterId: 'ch_phy11_01',
         examMode: 'chapter_test',
         marksPerMcq: 1,
         passPercentage: 40,
@@ -140,6 +199,9 @@ test('Stage 4-7 student journey: exam start, grading, mistakes, flashcards, insi
     });
     assert.equal(sub.status, 201);
     assert.ok(sub.body.data.xpEarned > 0);
+    assert.ok(Array.isArray(sub.body.data.perQuestionFeedback));
+    assert.equal(sub.body.data.perQuestionFeedback.length, sessionMcqs.length);
+    assert.ok(sub.body.data.perQuestionFeedback[0].correctOptionId);
 
     if (round === 0) {
       const activeMistakes = await jsonReq(env, '/v1/students/me/mistakes', { headers: auth });
@@ -166,16 +228,16 @@ test('Stage 4-7 student journey: exam start, grading, mistakes, flashcards, insi
   assert.ok(typeof afterInsights.body.data.readinessPercent === 'number');
   assert.notEqual(afterInsights.body.data.readinessStatus, 'insufficient_data');
 
-  // Bookmarks create + list + delete
+  // Bookmarks create + list
   const bmCreate = await jsonReq(env, '/v1/students/me/bookmarks', {
     method: 'POST',
     headers: auth,
     body: JSON.stringify({
       itemType: 'chapter',
-      itemId: 'ch_phy9_01',
-      chapterId: 'ch_phy9_01',
-      subjectId: 'sub_kpk9_phy',
-      title: 'Physical Quantities & Measurement',
+      itemId: 'ch_phy11_01',
+      chapterId: 'ch_phy11_01',
+      subjectId: 'sub_kpk11_phy',
+      title: 'Measurements',
     }),
   });
   assert.equal(bmCreate.status, 201);
@@ -183,9 +245,9 @@ test('Stage 4-7 student journey: exam start, grading, mistakes, flashcards, insi
   assert.equal(bmList.body.data.length, 1);
 
   // Flashcards SM-2 review
-  const cards = await jsonReq(env, '/v1/students/me/flashcards?subjectId=sub_kpk9_phy', { headers: auth });
+  const cards = await jsonReq(env, '/v1/students/me/flashcards?subjectId=sub_kpk11_phy', { headers: auth });
   assert.equal(cards.status, 200);
-  assert.ok(cards.body.data.length >= 2);
+  assert.ok(cards.body.data.length >= 1);
   const reviewRes = await jsonReq(env, '/v1/students/me/flashcards/review', {
     method: 'POST',
     headers: auth,
@@ -199,9 +261,9 @@ test('Stage 4-7 student journey: exam start, grading, mistakes, flashcards, insi
     method: 'POST',
     headers: auth,
     body: JSON.stringify({
-      title: 'Revise Vernier Calipers',
-      subjectId: 'sub_kpk9_phy',
-      chapterId: 'ch_phy9_01',
+      title: 'Revise Dimensional Analysis',
+      subjectId: 'sub_kpk11_phy',
+      chapterId: 'ch_phy11_01',
       estimatedMinutes: 30,
       taskType: 'revision',
     }),

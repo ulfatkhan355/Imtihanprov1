@@ -34,10 +34,10 @@ export function AcademicManagementPages({
   const [showSubjectModal, setShowSubjectModal] = useState(false);
   const [subName, setSubName] = useState('');
   const [subCode, setSubCode] = useState('');
-  const [subClass, setSubClass] = useState<ClassLevel>(9);
+  const [subClass, setSubClass] = useState<ClassLevel>(11);
   const [subBoard, setSubBoard] = useState<BoardCode>('KPK');
   const [subChaptersCount, setSubChaptersCount] = useState(10);
-  const [subStudyGroups, setSubStudyGroups] = useState<StudyGroupCode[]>(['SCIENCE_BIOLOGY', 'SCIENCE_CS']);
+  const [subStudyGroups, setSubStudyGroups] = useState<StudyGroupCode[]>(['PRE_MEDICAL', 'PRE_ENGINEERING']);
   const [subError, setSubError] = useState('');
 
   const [showChapterModal, setShowChapterModal] = useState(false);
@@ -295,14 +295,16 @@ export function AcademicManagementPages({
                 key={cls.id}
                 className="rounded-xl border border-[#CBD8EE] bg-white p-5 dark:border-[#223B70] dark:bg-[#0D1B38]"
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="font-display text-lg font-bold text-[#0F172A] dark:text-white">
                     {cls.label}
                   </span>
-                  {cls.coverageStatus === 'active_seed' ? (
-                    <StatusIndicator label="Active Seed" tone="success" />
+                  {cls.isPublicAvailable ? (
+                    <StatusIndicator label="Live v1.0 Launch" tone="success" />
+                  ) : cls.coverageStatus === 'active_seed' ? (
+                    <StatusIndicator label="Active Seed" tone="info" />
                   ) : (
-                    <StatusIndicator label="Structure Ready" tone="info" />
+                    <StatusIndicator label="Prepared (Hidden in v1.0)" tone="neutral" />
                   )}
                 </div>
                 <div className="mt-1 text-xs text-[#64748B] dark:text-[#8FA7D1]">

@@ -89,4 +89,6 @@ export const API_ENDPOINTS = {
   adminCapacity: '/admin/capacity',
   adminCapacityPolicy: '/admin/capacity-policy',
   adminSettings: '/admin/settings',
+  adminUsers: '/admin/users',
+  adminUserRole: (adminId: string) => `/admin/users/${encodeURIComponent(adminId)}/role`,
 } as const;

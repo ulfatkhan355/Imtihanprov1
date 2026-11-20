@@ -114,7 +114,7 @@ class Stage3To8EngineTests {
             prompt = "Explain Vernier Callipers"
         )
         assertTrue(tutorRes is ApiResult.Failure)
-        assertEquals(503, (tutorRes as ApiResult.Failure).httpStatus)
+        assertEquals(503, (tutorRes as ApiResult.Failure).statusCode)
     }
 
     @Test
@@ -219,20 +219,24 @@ class Stage3To8EngineTests {
     }
 
     @Test
-    fun `class 9 KPK primary seed subjects and dynamic study groups are present`() = runTest {
+    fun `class 11 KPK primary seed subjects and dynamic study groups are present`() = runTest {
         assertEquals(8, Stage3To8Engines.KPK_SUB_BOARDS.size)
-        assertTrue(Stage3To8Engines.studyGroupsForClass(9).any { it.code == "SCIENCE_BIOLOGY" })
+        assertTrue(Stage3To8Engines.studyGroupsForClass(11).any { it.code == "PRE_MEDICAL" })
         assertTrue(Stage3To8Engines.studyGroupsForClass(11).any { it.code == "PRE_ENGINEERING" })
-        assertTrue(MockSeedDataSource.subjects.any { it.id == "sub_kpk9_phy" && it.classLevel == 9 })
-        assertTrue(MockSeedDataSource.detailedNotesBlocks.containsKey("ch_phy9_01"))
+        assertTrue(Stage3To8Engines.studyGroupsForClass(11).any { it.code == "ICS" })
+        assertTrue(MockSeedDataSource.subjects.any { it.id == "sub_kpk11_phy" && it.classLevel == 11 })
+        assertTrue(MockSeedDataSource.detailedNotesBlocks.containsKey("ch_phy11_01"))
+        assertTrue(com.imtihanpro.app.domain.model.ClassLevelOption.CLASS_11.isAvailableInCurrentRelease)
+        assertFalse(com.imtihanpro.app.domain.model.ClassLevelOption.CLASS_9.isAvailableInCurrentRelease)
 
         val vm = ImtihanViewModel(Stage1MockCurriculumRepository(), null)
-        assertEquals(9, vm.shellState.value.selectedClassLevel)
+        assertEquals(11, vm.shellState.value.selectedClassLevel)
+        assertEquals("PRE_MEDICAL", vm.shellState.value.studyGroupCode)
         assertEquals(0, vm.shellState.value.profile.overallProgressPercent)
         val job = backgroundScope.launch { vm.subjectsState.collect {} }
         val state = vm.subjectsState.first { it !is UiResourceState.Loading }
         assertTrue(state is UiResourceState.Success)
-        assertTrue((state as UiResourceState.Success).data.any { it.id == "sub_kpk9_phy" })
+        assertTrue((state as UiResourceState.Success).data.any { it.id == "sub_kpk11_phy" })
         job.cancel()
     }
 
@@ -296,9 +300,9 @@ class Stage3To8EngineTests {
         val picked = Stage3To8Engines.pickRapidFireQuestions(rapidSample, count = 2)
         assertEquals(listOf("q_a", "q_b"), picked.map { it.id })
 
-        val chPhy1 = MockSeedDataSource.chapters.first { it.id == "ch_phy9_01" }
-        assertNotNull(chPhy1.titleUrdu)
-        assertTrue(chPhy1.boardWeightageMarks > 0)
-        assertNotNull(chPhy1.nightBeforeSummary)
+        val chPhy11 = MockSeedDataSource.chapters.first { it.id == "ch_phy11_01" }
+        assertNotNull(chPhy11.titleUrdu)
+        assertTrue(chPhy11.boardWeightageMarks > 0)
+        assertNotNull(chPhy11.nightBeforeSummary)
     }
 }

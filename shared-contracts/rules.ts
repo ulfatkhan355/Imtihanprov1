@@ -112,14 +112,14 @@ export function gradeQuizSubmission(
     const bucket = topicBuckets.get(topicName) ?? { correct: 0, total: 0 };
     bucket.total += 1;
 
-    if (!item) {
+    if (!item || !item.correctOptionId) {
       unansweredCount += 1;
       topicBuckets.set(topicName, bucket);
       return {
         mcqId: ans.mcqId,
         isCorrect: false,
         correctOptionId: 'A' as const,
-        explanation: 'Question metadata unavailable.',
+        explanation: item?.explanation || 'Question metadata unavailable.',
       };
     }
 
@@ -130,7 +130,7 @@ export function gradeQuizSubmission(
         mcqId: ans.mcqId,
         isCorrect: false,
         correctOptionId: item.correctOptionId,
-        explanation: item.explanation,
+        explanation: item.explanation || '',
       };
     }
 
@@ -147,7 +147,7 @@ export function gradeQuizSubmission(
       mcqId: ans.mcqId,
       isCorrect,
       correctOptionId: item.correctOptionId,
-      explanation: item.explanation,
+      explanation: item.explanation || '',
     };
   });
 

@@ -80,7 +80,7 @@ export async function resolveStudentFromRequest(
       selected_class, selected_board, selected_sub_board, study_group, language,
       study_hours_total, daily_goal_percent, alias_handle,
       last_active_iso, created_at_iso, updated_at_iso
-    ) VALUES (?, ?, NULL, NULL, 'Guest Learner', NULL, 9, 'KPK', 'PESHAWAR', 'SCIENCE_BIOLOGY', 'en', 0, 0, ?, ?, ?, ?)`
+    ) VALUES (?, ?, NULL, NULL, 'Guest Learner', NULL, 11, 'KPK', 'PESHAWAR', 'PRE_MEDICAL', 'en', 0, 0, ?, ?, ?, ?)`
   )
     .bind(newId, deviceId, aliasHandle, nowIso, nowIso, nowIso)
     .run();
@@ -142,7 +142,7 @@ export async function handleStudentAuthAndSyncRoutes(
     const displayName = body.displayName?.trim() || 'Guest Learner';
     const selectedClass: ClassLevel = [9, 10, 11, 12].includes(Number(body.selectedClass))
       ? (Number(body.selectedClass) as ClassLevel)
-      : 9;
+      : 11;
     const selectedBoard: BoardCode = body.selectedBoard || 'KPK';
     const selectedSubBoard: KpkSubBoardCode = body.selectedSubBoard || 'PESHAWAR';
     const studyGroup: StudyGroupCode = body.studyGroup || (selectedClass >= 11 ? 'PRE_MEDICAL' : 'SCIENCE_BIOLOGY');
@@ -278,7 +278,7 @@ export async function handleStudentAuthAndSyncRoutes(
     let studentId: string;
     if (byGoogle) {
       studentId = byGoogle.id;
-      // Merge any progress from temporary guest row into the Google-linked student account
+      // Merge all progress and learning records from temporary guest row into the Google-linked account
       if (byGuest && byGuest.id !== byGoogle.id) {
         const guestProg = await getStudentProgressRecord(env.DB, byGuest.id);
         const cloudProg = await getStudentProgressRecord(env.DB, byGoogle.id);
@@ -309,6 +309,193 @@ export async function handleStudentAuthAndSyncRoutes(
             nowIso
           )
         );
+
+        // Reassign quiz submissions, study tasks, and exam sessions
+        mergeStatements.push(
+          env.DB.prepare('UPDATE quiz_submissions SET student_id = ? WHERE student_id = ?').bind(
+            studentId,
+            byGuest.id
+          ),
+          env.DB.prepare('UPDATE student_study_tasks SET student_id = ? WHERE student_id = ?').bind(
+            studentId,
+            byGuest.id
+          ),
+          env.DB.prepare('UPDATE exam_sessions SET student_id = ? WHERE student_id = ?').bind(
+            studentId,
+            byGuest.id
+          )
+        );
+
+        // Merge mistakes safely without duplicate unique constraint violations
+        const guestMistakes = await env.DB.prepare(
+          'SELECT * FROM student_mistakes WHERE student_id = ?'
+        )
+          .bind(byGuest.id)
+          .all<{
+            id: string;
+            mcq_id: string;
+            subject_id: string;
+            chapter_id: string;
+            topic_title: string;
+            question: string;
+            last_wrong_option_id: string | null;
+            correct_option_id: string;
+            wrong_count: number;
+            mastered: number;
+            last_attempted_at_iso: string;
+          }>();
+
+        for (const gm of guestMistakes.results) {
+          mergeStatements.push(
+            env.DB.prepare(
+              `INSERT INTO student_mistakes (
+                id, student_id, mcq_id, subject_id, chapter_id, topic_title,
+                question, last_wrong_option_id, correct_option_id, wrong_count,
+                mastered, last_attempted_at_iso
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(student_id, mcq_id) DO UPDATE SET
+                wrong_count = MAX(wrong_count, excluded.wrong_count),
+                mastered = MAX(mastered, excluded.mastered),
+                last_wrong_option_id = COALESCE(excluded.last_wrong_option_id, last_wrong_option_id),
+                last_attempted_at_iso = MAX(last_attempted_at_iso, excluded.last_attempted_at_iso)`
+            ).bind(
+              `msk_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`,
+              studentId,
+              gm.mcq_id,
+              gm.subject_id,
+              gm.chapter_id,
+              gm.topic_title,
+              gm.question,
+              gm.last_wrong_option_id,
+              gm.correct_option_id,
+              gm.wrong_count,
+              gm.mastered,
+              gm.last_attempted_at_iso
+            )
+          );
+        }
+
+        // Merge bookmarks cleanly
+        const guestBookmarks = await env.DB.prepare(
+          'SELECT * FROM student_bookmarks WHERE student_id = ?'
+        )
+          .bind(byGuest.id)
+          .all<{
+            item_type: string;
+            item_id: string;
+            chapter_id: string | null;
+            subject_id: string | null;
+            title: string;
+            note: string;
+            created_at_iso: string;
+          }>();
+        for (const gb of guestBookmarks.results) {
+          mergeStatements.push(
+            env.DB.prepare(
+              `INSERT OR IGNORE INTO student_bookmarks (
+                id, student_id, item_type, item_id, chapter_id, subject_id, title, note, created_at_iso
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            ).bind(
+              `bm_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`,
+              studentId,
+              gb.item_type,
+              gb.item_id,
+              gb.chapter_id,
+              gb.subject_id,
+              gb.title,
+              gb.note,
+              gb.created_at_iso
+            )
+          );
+        }
+
+        // Merge flashcard spaced-repetition state
+        const guestReviews = await env.DB.prepare(
+          'SELECT * FROM student_flashcard_reviews WHERE student_id = ?'
+        )
+          .bind(byGuest.id)
+          .all<{
+            flashcard_id: string;
+            ease_factor: number;
+            interval_days: number;
+            repetitions: number;
+            last_quality: number;
+            next_review_at_iso: string;
+            updated_at_iso: string;
+          }>();
+        for (const gr of guestReviews.results) {
+          mergeStatements.push(
+            env.DB.prepare(
+              `INSERT INTO student_flashcard_reviews (
+                student_id, flashcard_id, ease_factor, interval_days, repetitions, last_quality, next_review_at_iso, updated_at_iso
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(student_id, flashcard_id) DO UPDATE SET
+                repetitions = MAX(repetitions, excluded.repetitions),
+                interval_days = MAX(interval_days, excluded.interval_days),
+                ease_factor = excluded.ease_factor,
+                last_quality = excluded.last_quality,
+                next_review_at_iso = excluded.next_review_at_iso,
+                updated_at_iso = MAX(updated_at_iso, excluded.updated_at_iso)`
+            ).bind(
+              studentId,
+              gr.flashcard_id,
+              gr.ease_factor,
+              gr.interval_days,
+              gr.repetitions,
+              gr.last_quality,
+              gr.next_review_at_iso,
+              gr.updated_at_iso
+            )
+          );
+        }
+
+        // Merge daily activity & achievements
+        const guestDays = await env.DB.prepare(
+          'SELECT day_ymd, minutes_logged, quizzes_completed, chapters_studied FROM student_activity_days WHERE student_id = ?'
+        )
+          .bind(byGuest.id)
+          .all<{ day_ymd: string; minutes_logged: number; quizzes_completed: number; chapters_studied: number }>();
+        for (const gd of guestDays.results) {
+          mergeStatements.push(
+            env.DB.prepare(
+              `INSERT INTO student_activity_days (student_id, day_ymd, minutes_logged, quizzes_completed, chapters_studied)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(student_id, day_ymd) DO UPDATE SET
+                 minutes_logged = minutes_logged + excluded.minutes_logged,
+                 quizzes_completed = quizzes_completed + excluded.quizzes_completed,
+                 chapters_studied = chapters_studied + excluded.chapters_studied`
+            ).bind(studentId, gd.day_ymd, gd.minutes_logged, gd.quizzes_completed, gd.chapters_studied)
+          );
+        }
+
+        const guestAchievements = await env.DB.prepare(
+          'SELECT achievement_code, unlocked_at_iso FROM student_achievements WHERE student_id = ?'
+        )
+          .bind(byGuest.id)
+          .all<{ achievement_code: string; unlocked_at_iso: string }>();
+        for (const ga of guestAchievements.results) {
+          mergeStatements.push(
+            env.DB.prepare(
+              'INSERT OR IGNORE INTO student_achievements (student_id, achievement_code, unlocked_at_iso) VALUES (?, ?, ?)'
+            ).bind(studentId, ga.achievement_code, ga.unlocked_at_iso)
+          );
+        }
+
+        const guestXp = guestProg?.xpTotal ?? 0;
+        const guestHours = guestProg?.studyHoursTotal ?? 0;
+        const guestDiag = guestProg?.diagnosticCompleted ? 1 : 0;
+        if (guestXp > 0 || guestHours > 0 || guestDiag > 0) {
+          mergeStatements.push(
+            env.DB.prepare(
+              `UPDATE students SET
+                xp_total = xp_total + ?,
+                study_hours_total = study_hours_total + ?,
+                diagnostic_completed = MAX(diagnostic_completed, ?)
+               WHERE id = ?`
+            ).bind(guestXp, guestHours, guestDiag, studentId)
+          );
+        }
+
         if (mergeStatements.length > 0) {
           await env.DB.batch(mergeStatements);
         }
@@ -336,12 +523,15 @@ export async function handleStudentAuthAndSyncRoutes(
         .run();
     } else {
       studentId = `stu_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
+      const fallbackClass: ClassLevel = (body.selectedClass ?? 11) as ClassLevel;
+      const fallbackGroup: StudyGroupCode =
+        fallbackClass >= 11 ? 'PRE_MEDICAL' : 'SCIENCE_BIOLOGY';
       await env.DB.prepare(
         `INSERT INTO students (
           id, guest_device_id, google_uid, email, display_name, avatar_url,
-          selected_class, selected_board, study_hours_total, daily_goal_percent,
-          last_active_iso, created_at_iso, updated_at_iso
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)`
+          selected_class, selected_board, selected_sub_board, study_group,
+          study_hours_total, daily_goal_percent, last_active_iso, created_at_iso, updated_at_iso
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PESHAWAR', ?, 0, 0, ?, ?, ?)`
       )
         .bind(
           studentId,
@@ -350,8 +540,9 @@ export async function handleStudentAuthAndSyncRoutes(
           identity.email,
           identity.displayName,
           identity.avatarUrl,
-          body.selectedClass ?? 10,
+          fallbackClass,
           body.selectedBoard ?? 'KPK',
+          fallbackGroup,
           nowIso,
           nowIso,
           nowIso
@@ -524,7 +715,7 @@ export async function handleStudentAuthAndSyncRoutes(
          WHERE id = ?`
       )
         .bind(
-          body.selectedClass || current?.selectedClass || 9,
+          body.selectedClass || current?.selectedClass || 11,
           body.selectedBoard || current?.selectedBoard || 'KPK',
           body.selectedSubBoard ?? null,
           body.studyGroup ?? null,
