@@ -9,6 +9,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -50,6 +51,7 @@ import com.imtihanpro.app.ui.screens.StudyPlannerScreen
 import com.imtihanpro.app.ui.screens.SubjectDetailsScreen
 import com.imtihanpro.app.ui.screens.SubjectListingScreen
 import com.imtihanpro.app.ui.share.ShareCardGenerator
+import com.imtihanpro.app.ui.theme.ImtihanMotion
 import com.imtihanpro.app.ui.theme.LocalImtihanColors
 import com.imtihanpro.app.ui.viewmodel.ImtihanViewModel
 
@@ -102,6 +104,8 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
     val pdfLibraryState by viewModel.pdfLibraryState.collectAsState()
     val pdfCategoryFilter by viewModel.pdfCategoryFilter.collectAsState()
     val downloadsState by viewModel.downloadsState.collectAsState()
+    val downloadTasksState by viewModel.downloadTasksState.collectAsState()
+    val pendingPdfDeepLink by viewModel.pendingPdfDeepLink.collectAsState()
     val pdfViewerState by viewModel.pdfViewerState.collectAsState()
     val pdfBookmarks by viewModel.pdfBookmarksState.collectAsState()
     val pdfAnnotations by viewModel.pdfAnnotationsState.collectAsState()
@@ -128,6 +132,12 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
         soundEnabled = shellState.soundEffectsEnabled,
         hapticsEnabled = shellState.hapticsEnabled
     )
+
+    LaunchedEffect(pendingPdfDeepLink) {
+        val req = pendingPdfDeepLink ?: return@LaunchedEffect
+        viewModel.consumePendingPdfDeepLink()
+        navController.navigate(Routes.pdfReader(req.paperId, req.pdfId, req.title, 10))
+    }
 
     val bottomBarRoutes = setOf(
         Routes.HOME,
@@ -171,16 +181,16 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
             startDestination = Routes.SPLASH,
             modifier = Modifier.padding(innerPadding),
             enterTransition = {
-                fadeIn(tween(220)) + slideInHorizontally(tween(220)) { it / 16 }
+                fadeIn(tween(ImtihanMotion.standardMs)) + slideInHorizontally(tween(ImtihanMotion.standardMs)) { it / 16 }
             },
             exitTransition = {
-                fadeOut(tween(180)) + slideOutHorizontally(tween(180)) { -it / 20 }
+                fadeOut(tween(ImtihanMotion.fastMs)) + slideOutHorizontally(tween(ImtihanMotion.fastMs)) { -it / 20 }
             },
             popEnterTransition = {
-                fadeIn(tween(200)) + slideInHorizontally(tween(200)) { -it / 16 }
+                fadeIn(tween(ImtihanMotion.standardMs)) + slideInHorizontally(tween(ImtihanMotion.standardMs)) { -it / 16 }
             },
             popExitTransition = {
-                fadeOut(tween(180)) + slideOutHorizontally(tween(180)) { it / 16 }
+                fadeOut(tween(ImtihanMotion.fastMs)) + slideOutHorizontally(tween(ImtihanMotion.fastMs)) { it / 16 }
             }
         ) {
             composable(Routes.SPLASH) {
@@ -314,7 +324,8 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                             readinessPercent = smartInsights.readiness.readinessPercent
                         )
                     },
-                    onBannerDisplayed = viewModel::recordBannerImpression
+                    onBannerDisplayed = viewModel::recordBannerImpression,
+                    onRetrySubjects = viewModel::refreshCatalog
                 )
             }
 
@@ -328,7 +339,8 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                         viewModel.selectSubject(subject.id)
                         navController.navigate(Routes.SUBJECT_DETAILS)
                     },
-                    onOpenMotivation = { navController.navigate(Routes.MOTIVATION) }
+                    onOpenMotivation = { navController.navigate(Routes.MOTIVATION) },
+                    onRetrySubjects = viewModel::refreshCatalog
                 )
             }
 
@@ -367,7 +379,8 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                             viewModel.downloadSubjectOfflinePack(sub.id, sub.name)
                         }
                     },
-                    onClearOfflinePackStatus = viewModel::clearOfflinePackStatus
+                    onClearOfflinePackStatus = viewModel::clearOfflinePackStatus,
+                    onRetryChapters = viewModel::refreshCatalog
                 )
             }
 
@@ -379,7 +392,8 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                     onSelectChapter = { chapter ->
                         viewModel.selectChapter(chapter.id)
                         navController.navigate(Routes.WORKSPACE)
-                    }
+                    },
+                    onRetryChapters = viewModel::refreshCatalog
                 )
             }
 
@@ -464,6 +478,7 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                     },
                     onAskAiTutor = { navController.navigate(Routes.AI_TUTOR) },
                     onReportIssue = { navController.navigate(Routes.FEEDBACK) },
+                    onRetryNotes = viewModel::refreshCatalog,
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -496,6 +511,7 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                     },
                     onAskAiTutor = { navController.navigate(Routes.AI_TUTOR) },
                     onReportIssue = { navController.navigate(Routes.FEEDBACK) },
+                    onRetryNotes = viewModel::refreshCatalog,
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -631,6 +647,7 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                     },
                     onAskAiTutor = { navController.navigate(Routes.AI_TUTOR) },
                     onReportIssue = { navController.navigate(Routes.FEEDBACK) },
+                    onRetryNotes = viewModel::refreshCatalog,
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -639,6 +656,7 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                 PastPapersScreen(
                     papersState = pastPapersState,
                     pdfLibrary = pdfLibraryState,
+                    downloadTasks = downloadTasksState,
                     solvedFilter = paperSolvedFilter,
                     selectedCategory = pdfCategoryFilter,
                     adPolicy = shellState.adPolicy,
@@ -648,11 +666,11 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                     onOpenPaper = { paper ->
                         val title = "${paper.subjectName} — ${paper.year}"
                         val pdfId = paper.pdfMetadataId.ifBlank { paper.id }
-                        viewModel.openPdfForReading(paper.id, pdfId, title, paper.pageCount)
+                        viewModel.openPdfForReading(paper.id, pdfId, title, paper.pageCount, paper.fileSizeMb)
                         navController.navigate(Routes.pdfReader(paper.id, pdfId, title, paper.pageCount))
                     },
                     onOpenPdfResource = { pdf ->
-                        viewModel.openPdfForReading(pdf.id, pdf.id, pdf.title, pdf.pageCount)
+                        viewModel.openPdfForReading(pdf.id, pdf.id, pdf.title, pdf.pageCount, pdf.sizeMb)
                         navController.navigate(Routes.pdfReader(pdf.id, pdf.id, pdf.title, pdf.pageCount))
                     },
                     onToggleDownloadPaper = { paper ->
@@ -665,7 +683,13 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                     onToggleDownloadPdf = { pdf ->
                         viewModel.toggleDownloadPaper(pdf.id, pdf.title, pdf.sizeMb)
                     },
+                    onPauseDownload = viewModel::pausePdfDownload,
+                    onResumeDownload = viewModel::resumePdfDownload,
+                    onCancelDownload = viewModel::cancelPdfDownload,
+                    onRetryDownload = viewModel::retryPdfDownload,
+                    onDownloadOnMobileData = viewModel::downloadOnMobileData,
                     onBannerDisplayed = viewModel::recordBannerImpression,
+                    onRetryPapers = viewModel::refreshCatalog,
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -694,15 +718,31 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                     onToggleBookmark = viewModel::toggleCurrentPdfBookmark,
                     onAddAnnotation = viewModel::addPdfNote,
                     onDeleteAnnotation = viewModel::deletePdfNote,
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onPauseDownload = { viewModel.pausePdfDownload(pdfId) },
+                    onResumeDownload = { viewModel.resumePdfDownload(pdfId) },
+                    onCancelDownload = { viewModel.cancelPdfDownload(pdfId) },
+                    onDownloadOnMobileData = { viewModel.downloadOnMobileData(pdfId) }
                 )
             }
 
             composable(Routes.DOWNLOADS) {
                 DownloadsScreen(
                     downloads = downloadsState,
+                    downloadTasks = downloadTasksState,
                     onBack = { navController.popBackStack() },
-                    onClearAll = viewModel::clearDownloads
+                    onClearAll = viewModel::clearDownloads,
+                    onBrowseLibrary = { navController.navigate(Routes.PAPERS) },
+                    onPauseDownload = viewModel::pausePdfDownload,
+                    onResumeDownload = viewModel::resumePdfDownload,
+                    onCancelDownload = viewModel::cancelPdfDownload,
+                    onRetryDownload = viewModel::retryPdfDownload,
+                    onRetryAllFailed = viewModel::retryAllFailedDownloads,
+                    onDownloadOnMobileData = viewModel::downloadOnMobileData,
+                    onOpenDownloadedPdf = { pdfId, title ->
+                        viewModel.openPdfForReading(pdfId, pdfId, title, 10)
+                        navController.navigate(Routes.pdfReader(pdfId, pdfId, title, 10))
+                    }
                 )
             }
 
@@ -711,6 +751,7 @@ fun ImtihanNavGraph(viewModel: ImtihanViewModel) {
                     shellState = shellState,
                     onToggleDarkMode = viewModel::toggleDarkMode,
                     onToggleOfflineSimulated = viewModel::toggleOfflineSimulated,
+                    onToggleAllowMobileData = viewModel::setAllowDownloadOverMobileData,
                     onToggleNotifications = viewModel::setNotificationsEnabled,
                     onToggleSoundEffects = viewModel::toggleSoundEffects,
                     onToggleHaptics = viewModel::toggleHaptics,

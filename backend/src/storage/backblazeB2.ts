@@ -127,9 +127,20 @@ export async function signB2Request(params: {
   cfg: B2Config;
   payloadSha256Hex: string;
   contentType?: string;
+  range?: string;
+  ifRange?: string;
   now?: Date;
 }): Promise<SignedS3Request> {
-  const { method, objectKey, cfg, payloadSha256Hex, contentType, now = new Date() } = params;
+  const {
+    method,
+    objectKey,
+    cfg,
+    payloadSha256Hex,
+    contentType,
+    range,
+    ifRange,
+    now = new Date(),
+  } = params;
   const endpointUrl = new URL(cfg.endpoint);
   const host = endpointUrl.host;
   const { amzDate, dateStamp } = formatAmzDate(now);
@@ -146,6 +157,12 @@ export async function signB2Request(params: {
   ];
   if (contentType) {
     headerEntries.push(['content-type', contentType]);
+  }
+  if (range) {
+    headerEntries.push(['range', range]);
+  }
+  if (ifRange) {
+    headerEntries.push(['if-range', ifRange]);
   }
   headerEntries.sort((a, b) => a[0].localeCompare(b[0]));
 
@@ -180,6 +197,12 @@ export async function signB2Request(params: {
   if (contentType) {
     headers['Content-Type'] = contentType;
   }
+  if (range) {
+    headers['Range'] = range;
+  }
+  if (ifRange) {
+    headers['If-Range'] = ifRange;
+  }
 
   return {
     url: `${cfg.endpoint}${canonicalUri}`,
@@ -187,14 +210,18 @@ export async function signB2Request(params: {
   };
 }
 
+export const MIN_PRESIGNED_PDF_EXPIRY_SECONDS = 21600; // 6 hours for slow 2G/3G resume windows
+
 /**
  * Generates an AWS SigV4 pre-signed GET URL for direct Backblaze B2 download.
+ * Enforces >= 6-hour (21600s) expiry and signs `response-content-disposition` when supplied.
  */
 export async function generateB2PresignedGetUrl(
   objectKey: string,
   env: Env,
-  expiresInSeconds = 900,
-  now = new Date()
+  expiresInSeconds = MIN_PRESIGNED_PDF_EXPIRY_SECONDS,
+  now = new Date(),
+  options?: { responseContentDisposition?: string }
 ): Promise<string | null> {
   if (!isB2Configured(env)) return null;
   const cfg = resolveB2Config(env);
@@ -205,14 +232,19 @@ export async function generateB2PresignedGetUrl(
 
   const cleanKey = objectKey.replace(/^\/+/, '');
   const canonicalUri = `/${encodeURIComponent(cfg.bucketName)}/${encodeS3Path(cleanKey)}`;
+  const clampedExpiry = Math.max(MIN_PRESIGNED_PDF_EXPIRY_SECONDS, Math.min(604800, expiresInSeconds));
 
   const queryParams: Array<[string, string]> = [
     ['X-Amz-Algorithm', 'AWS4-HMAC-SHA256'],
     ['X-Amz-Credential', `${cfg.keyId}/${credentialScope}`],
     ['X-Amz-Date', amzDate],
-    ['X-Amz-Expires', String(Math.max(60, Math.min(86400, expiresInSeconds)))],
+    ['X-Amz-Expires', String(clampedExpiry)],
     ['X-Amz-SignedHeaders', 'host'],
   ];
+  const fileName = cleanKey.split('/').pop() || 'document.pdf';
+  const disposition =
+    options?.responseContentDisposition || `inline; filename="${fileName.replace(/"/g, '')}"`;
+  queryParams.push(['response-content-disposition', disposition]);
   queryParams.sort((a, b) => a[0].localeCompare(b[0]));
 
   const canonicalQuery = queryParams
@@ -299,7 +331,42 @@ export class BackblazeB2Client {
     };
   }
 
-  async getObject(objectKey: string): Promise<Response> {
+  async headObject(objectKey: string): Promise<{
+    contentLength: number | null;
+    etag: string | null;
+    contentType: string | null;
+  } | null> {
+    const cfg = this.requireConfigured();
+    const emptyHash = await sha256Hex('');
+    const signed = await signB2Request({
+      method: 'HEAD',
+      objectKey,
+      cfg,
+      payloadSha256Hex: emptyHash,
+    });
+    const res = await this.fetchFn(signed.url, {
+      method: 'HEAD',
+      headers: signed.headers,
+    });
+    if (res.status === 404) {
+      return null;
+    }
+    if (!res.ok) {
+      throw new HttpError(502, 'B2_HEAD_FAILED', `Backblaze B2 HEAD returned HTTP ${res.status}.`);
+    }
+    const lenRaw = res.headers.get('Content-Length');
+    const parsedLen = lenRaw ? Number.parseInt(lenRaw, 10) : NaN;
+    return {
+      contentLength: Number.isFinite(parsedLen) && parsedLen >= 0 ? parsedLen : null,
+      etag: res.headers.get('ETag'),
+      contentType: res.headers.get('Content-Type'),
+    };
+  }
+
+  async getObject(
+    objectKey: string,
+    options?: { range?: string; ifRange?: string }
+  ): Promise<Response> {
     const cfg = this.requireConfigured();
     const emptyHash = await sha256Hex('');
     const signed = await signB2Request({
@@ -307,6 +374,8 @@ export class BackblazeB2Client {
       objectKey,
       cfg,
       payloadSha256Hex: emptyHash,
+      range: options?.range,
+      ifRange: options?.ifRange,
     });
 
     const res = await this.fetchFn(signed.url, {
@@ -320,7 +389,7 @@ export class BackblazeB2Client {
         `Object "${objectKey}" was not found in Backblaze B2 bucket "${cfg.bucketName}". Upload the PDF binary first.`
       );
     }
-    if (!res.ok) {
+    if (res.status !== 200 && res.status !== 206 && res.status !== 416) {
       throw new HttpError(502, 'B2_DOWNLOAD_FAILED', `Backblaze B2 returned HTTP ${res.status}.`);
     }
     return res;

@@ -182,16 +182,15 @@ internal fun latexToHtmlFragment(input: String): String {
         .replace("\\]", "")
         .replace("$", "")
 
-    s = escapeHtml(s)
-
-    // Matrices & Determinants: \begin{bmatrix} ... \end{bmatrix}, pmatrix, vmatrix
+    // Extract matrices BEFORE escaping HTML so '&' column delimiters are preserved cleanly
+    val renderedMatrices = mutableListOf<String>()
     val matrixRegex = Regex("\\\\begin\\{(bmatrix|pmatrix|vmatrix|matrix)\\}([\\s\\S]*?)\\\\end\\{\\1\\}")
     s = matrixRegex.replace(s) { match ->
         val kind = match.groupValues[1]
         val content = match.groupValues[2].trim()
-        val rows = content.split("\\\\").map { row ->
-            row.split("&").map { cell -> cell.trim() }
-        }.filter { it.isNotEmpty() }
+        val rows = content.split("\\\\")
+            .map { row -> row.split("&").map { cell -> cell.trim() } }
+            .filter { row -> row.any { it.isNotEmpty() } }
         val cols = rows.maxOfOrNull { it.size }?.coerceAtLeast(1) ?: 1
         val wrapClass = when (kind) {
             "pmatrix" -> "matrix-wrap paren"
@@ -199,25 +198,35 @@ internal fun latexToHtmlFragment(input: String): String {
             else -> "matrix-wrap"
         }
         val cellsHtml = rows.joinToString("") { row ->
-            row.joinToString("") { cell -> "<span>${formatSimpleTokens(cell)}</span>" }
+            val padded = if (row.size < cols) row + List(cols - row.size) { "" } else row
+            padded.joinToString("") { cell ->
+                "<span>${formatMathInline(escapeHtml(cell))}</span>"
+            }
         }
-        "<span class=\"$wrapClass\"><span class=\"matrix-grid\" style=\"grid-template-columns:repeat($cols, auto);\">$cellsHtml</span></span>"
+        val token = "@@IMTIHAN_MATRIX_${renderedMatrices.size}@@"
+        renderedMatrices += "<span class=\"$wrapClass\"><span class=\"matrix-grid\" style=\"grid-template-columns:repeat($cols, auto);\">$cellsHtml</span></span>"
+        token
     }
 
-    // Nested-safe single-level fractions \frac{a}{b}
+    var html = formatMathInline(escapeHtml(s))
+    renderedMatrices.forEachIndexed { idx, matHtml ->
+        html = html.replace("@@IMTIHAN_MATRIX_${idx}@@", matHtml)
+    }
+    return html
+}
+
+private fun formatMathInline(escaped: String): String {
+    var s = escaped
     val fracRegex = Regex("\\\\frac\\{([^{}]+)\\}\\{([^{}]+)\\}")
     repeat(3) {
         s = fracRegex.replace(s) { m ->
             "<span class=\"frac\"><span class=\"num\">${m.groupValues[1]}</span><span class=\"den\">${m.groupValues[2]}</span></span>"
         }
     }
-
-    // Square roots \sqrt{x}
     val sqrtRegex = Regex("\\\\sqrt\\{([^{}]+)\\}")
     s = sqrtRegex.replace(s) { m ->
         "<span class=\"sqrt\"><span class=\"rad\">&#8730;</span><span class=\"radicand\">${m.groupValues[1]}</span></span>"
     }
-
     return formatSimpleTokens(s)
 }
 

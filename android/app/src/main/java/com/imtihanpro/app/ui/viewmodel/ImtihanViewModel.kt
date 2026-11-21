@@ -13,10 +13,13 @@ import com.imtihanpro.app.data.repository.CurriculumRepository
 import com.imtihanpro.app.data.repository.OfflineFirstCurriculumRepository
 import com.imtihanpro.app.data.repository.RealHomeSummaryMetrics
 import com.imtihanpro.app.data.repository.Stage1MockCurriculumRepository
+import com.imtihanpro.app.domain.engine.DownloadPausedReason
+import com.imtihanpro.app.domain.engine.DownloadState
 import com.imtihanpro.app.domain.engine.Stage3To8Engines
 import com.imtihanpro.app.domain.model.AdPlacementPolicyUi
 import com.imtihanpro.app.domain.model.ChapterUiModel
 import com.imtihanpro.app.domain.model.ContentBlockUi
+import com.imtihanpro.app.domain.model.DownloadTaskUi
 import com.imtihanpro.app.domain.model.DownloadedFileUi
 import com.imtihanpro.app.domain.model.ExamPatternUi
 import com.imtihanpro.app.domain.model.FlashcardUi
@@ -51,6 +54,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 data class AppShellState(
     val hasCompletedSetup: Boolean = false,
@@ -81,6 +85,7 @@ data class AppShellState(
     val soundEffectsEnabled: Boolean = true,
     val hapticsEnabled: Boolean = true,
     val readerHighContrastMode: String = "OLED",
+    val allowDownloadOverMobileData: Boolean = false,
     val offlinePackStatusMessage: String? = null,
     val profile: StudentProfileUi = StudentProfileUi(
         displayName = "Guest Learner",
@@ -99,7 +104,7 @@ data class AppShellState(
 data class QuizSessionState(
     val chapterId: String = "ch_phy11_01",
     val subjectId: String = "sub_kpk11_phy",
-    val sessionId: String = "chapter_session",
+    val sessionId: String = "chapter_${UUID.randomUUID().toString().take(8)}",
     val title: String = "Chapter Practice Quiz",
     val mode: String = "chapter_test",
     val currentIndex: Int = 0,
@@ -125,7 +130,19 @@ data class PdfViewerUiState(
     val isDownloading: Boolean = false,
     val errorMessage: String? = null,
     val currentPage: Int = 1,
-    val zoomPercent: Int = 100
+    val zoomPercent: Int = 100,
+    val downloadState: DownloadState? = null,
+    val pausedReason: DownloadPausedReason = DownloadPausedReason.NONE,
+    val bytesDownloaded: Long = 0L,
+    val totalBytes: Long = 0L,
+    val progressPercent: Int = -1,
+    val speedBytesPerSec: Long = 0L
+)
+
+data class PdfDeepLinkRequest(
+    val paperId: String,
+    val pdfId: String,
+    val title: String
 )
 
 class ImtihanViewModel(
@@ -135,6 +152,9 @@ class ImtihanViewModel(
 
     private val _shellState = MutableStateFlow(AppShellState())
     val shellState: StateFlow<AppShellState> = _shellState.asStateFlow()
+
+    private fun newSessionId(prefix: String): String =
+        "${prefix}_${UUID.randomUUID().toString().take(8)}"
 
     private val _selectedSubjectId = MutableStateFlow("sub_kpk11_phy")
     val selectedSubjectId: StateFlow<String> = _selectedSubjectId.asStateFlow()
@@ -166,7 +186,17 @@ class ImtihanViewModel(
     private val _pdfViewerState = MutableStateFlow(PdfViewerUiState())
     val pdfViewerState: StateFlow<PdfViewerUiState> = _pdfViewerState.asStateFlow()
 
+    private val _pendingPdfDeepLink = MutableStateFlow<PdfDeepLinkRequest?>(null)
+    val pendingPdfDeepLink: StateFlow<PdfDeepLinkRequest?> = _pendingPdfDeepLink.asStateFlow()
+
     private val _activePdfId = MutableStateFlow("")
+    private val _activePdfFallbackPages = MutableStateFlow(1)
+    private val _refreshTick = MutableStateFlow(0)
+
+    fun refreshCatalog() {
+        _refreshTick.update { it + 1 }
+        loadExamPatterns()
+    }
 
     init {
         preferencesDataStore?.let { store ->
@@ -195,6 +225,7 @@ class ImtihanViewModel(
                             soundEffectsEnabled = prefs.soundEffectsEnabled,
                             hapticsEnabled = prefs.hapticsEnabled,
                             readerHighContrastMode = prefs.readerHighContrastMode,
+                            allowDownloadOverMobileData = prefs.allowDownloadOverMobileData,
                             profile = current.profile.copy(
                                 displayName = prefs.displayName,
                                 isGuest = !prefs.isGoogleLinked,
@@ -206,6 +237,99 @@ class ImtihanViewModel(
                                 examCountdownDateIso = prefs.examCountdownDateIso
                             )
                         )
+                    }
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            repository.recoverDownloadQueueOnStartup()
+        }
+
+        @Suppress("OPT_IN_USAGE")
+        viewModelScope.launch {
+            combine(
+                _activePdfId,
+                repository.observeDownloadTasks()
+            ) { activeId, tasks ->
+                activeId to tasks.firstOrNull { it.pdfId == activeId }
+            }.collect { (activeId, task) ->
+                if (activeId.isBlank() || task == null) return@collect
+                val currentViewer = _pdfViewerState.value
+                if (currentViewer.pdfId != activeId) return@collect
+                when (task.state) {
+                    DownloadState.COMPLETED -> {
+                        val path = task.localPath
+                        if (!path.isNullOrBlank() && java.io.File(path).exists()) {
+                            val savedState = repository.getPdfReadingState(activeId)
+                            val upper = maxOf(1, _activePdfFallbackPages.value, savedState.totalPages, savedState.lastPage)
+                            val restoredPage = savedState.lastPage.coerceIn(1, upper)
+                            val restoredZoom = savedState.zoomPercent.coerceIn(100, 400)
+                            _pdfViewerState.update {
+                                it.copy(
+                                    localFilePath = path,
+                                    isDownloading = false,
+                                    errorMessage = null,
+                                    currentPage = restoredPage,
+                                    zoomPercent = restoredZoom,
+                                    downloadState = DownloadState.COMPLETED,
+                                    pausedReason = DownloadPausedReason.NONE,
+                                    bytesDownloaded = task.bytesDownloaded,
+                                    totalBytes = task.totalBytes,
+                                    progressPercent = 100,
+                                    speedBytesPerSec = 0L
+                                )
+                            }
+                        }
+                    }
+                    DownloadState.FAILED -> {
+                        _pdfViewerState.update {
+                            it.copy(
+                                localFilePath = null,
+                                isDownloading = false,
+                                errorMessage = task.errorMessage ?: "Unable to download PDF.",
+                                downloadState = DownloadState.FAILED,
+                                pausedReason = task.pausedReason,
+                                bytesDownloaded = task.bytesDownloaded,
+                                totalBytes = task.totalBytes,
+                                progressPercent = task.progressPercent,
+                                speedBytesPerSec = 0L
+                            )
+                        }
+                    }
+                    DownloadState.CANCELLED -> {
+                        _pdfViewerState.update {
+                            it.copy(
+                                localFilePath = null,
+                                isDownloading = false,
+                                errorMessage = "Download cancelled.",
+                                downloadState = DownloadState.CANCELLED,
+                                pausedReason = DownloadPausedReason.NONE,
+                                bytesDownloaded = 0L,
+                                totalBytes = task.totalBytes,
+                                progressPercent = 0,
+                                speedBytesPerSec = 0L
+                            )
+                        }
+                    }
+                    DownloadState.QUEUED,
+                    DownloadState.RUNNING,
+                    DownloadState.VERIFYING,
+                    DownloadState.PAUSED -> {
+                        if (currentViewer.localFilePath == null) {
+                            _pdfViewerState.update {
+                                it.copy(
+                                    isDownloading = true,
+                                    errorMessage = task.errorMessage,
+                                    downloadState = task.state,
+                                    pausedReason = task.pausedReason,
+                                    bytesDownloaded = task.bytesDownloaded,
+                                    totalBytes = task.totalBytes,
+                                    progressPercent = task.progressPercent,
+                                    speedBytesPerSec = task.speedBytesPerSec
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -249,9 +373,10 @@ class ImtihanViewModel(
     }
 
     @Suppress("OPT_IN_USAGE")
-    val subjectsState: StateFlow<UiResourceState<List<SubjectUiModel>>> = _shellState
-        .map { Triple(it.selectedClassLevel, it.selectedBoardCode, it.isOfflineSimulated to it.studyGroupCode) }
-        .distinctUntilChanged()
+    val subjectsState: StateFlow<UiResourceState<List<SubjectUiModel>>> = combine(
+        _shellState.map { Triple(it.selectedClassLevel, it.selectedBoardCode, it.isOfflineSimulated to it.studyGroupCode) }.distinctUntilChanged(),
+        _refreshTick
+    ) { key, _ -> key }
         .flatMapLatest { (classLevel, boardCode, _) ->
             repository.observeSubjects(classLevel, boardCode)
         }
@@ -260,36 +385,50 @@ class ImtihanViewModel(
     @Suppress("OPT_IN_USAGE")
     val chaptersState: StateFlow<UiResourceState<List<ChapterUiModel>>> = combine(
         _selectedSubjectId,
-        _shellState.map { it.isOfflineSimulated }.distinctUntilChanged()
-    ) { subjectId, _ -> subjectId }
+        _shellState.map { it.isOfflineSimulated }.distinctUntilChanged(),
+        _refreshTick
+    ) { subjectId, _, _ -> subjectId }
         .flatMapLatest { subjectId -> repository.observeChapters(subjectId) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiResourceState.Loading)
 
     @Suppress("OPT_IN_USAGE")
-    val detailedNotesState: StateFlow<UiResourceState<List<ContentBlockUi>>> = _selectedChapterId
+    val detailedNotesState: StateFlow<UiResourceState<List<ContentBlockUi>>> = combine(
+        _selectedChapterId,
+        _refreshTick
+    ) { chId, _ -> chId }
         .flatMapLatest { chId -> repository.observeChapterBlocks(chId, revisionOnly = false) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiResourceState.Loading)
 
     @Suppress("OPT_IN_USAGE")
-    val revisionNotesState: StateFlow<UiResourceState<List<ContentBlockUi>>> = _selectedChapterId
+    val revisionNotesState: StateFlow<UiResourceState<List<ContentBlockUi>>> = combine(
+        _selectedChapterId,
+        _refreshTick
+    ) { chId, _ -> chId }
         .flatMapLatest { chId -> repository.observeChapterBlocks(chId, revisionOnly = true) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiResourceState.Loading)
 
     @Suppress("OPT_IN_USAGE")
-    val solvedQuestionsState: StateFlow<UiResourceState<List<ContentBlockUi>>> = _selectedChapterId
+    val solvedQuestionsState: StateFlow<UiResourceState<List<ContentBlockUi>>> = combine(
+        _selectedChapterId,
+        _refreshTick
+    ) { chId, _ -> chId }
         .flatMapLatest { chId -> repository.observeSolvedQuestions(chId) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiResourceState.Loading)
 
     @Suppress("OPT_IN_USAGE")
-    val mcqsState: StateFlow<UiResourceState<List<McqQuestionUi>>> = _selectedChapterId
+    val mcqsState: StateFlow<UiResourceState<List<McqQuestionUi>>> = combine(
+        _selectedChapterId,
+        _refreshTick
+    ) { chId, _ -> chId }
         .flatMapLatest { chId -> repository.observeMcqsForChapter(chId) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiResourceState.Loading)
 
     @Suppress("OPT_IN_USAGE")
     val pastPapersState: StateFlow<UiResourceState<List<PastPaperUi>>> = combine(
         _shellState.map { it.selectedClassLevel to it.isOfflineSimulated }.distinctUntilChanged(),
-        _paperSolvedFilter
-    ) { (classLevel, _), filter ->
+        _paperSolvedFilter,
+        _refreshTick
+    ) { (classLevel, _), filter, _ ->
         classLevel to filter
     }
         .flatMapLatest { (classLevel, filter) ->
@@ -324,6 +463,9 @@ class ImtihanViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SearchResultsUi())
 
     val downloadsState: StateFlow<List<DownloadedFileUi>> = repository.observeDownloads()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val downloadTasksState: StateFlow<List<DownloadTaskUi>> = repository.observeDownloadTasks()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val quizHistoryState: StateFlow<List<QuizHistoryItemUi>> = repository.observeQuizHistory()
@@ -529,6 +671,13 @@ class ImtihanViewModel(
         }
     }
 
+    fun setAllowDownloadOverMobileData(enabled: Boolean) {
+        _shellState.update { it.copy(allowDownloadOverMobileData = enabled) }
+        viewModelScope.launch {
+            preferencesDataStore?.setAllowDownloadOverMobileData(enabled)
+        }
+    }
+
     fun updateApiBaseUrl(rawUrl: String): String? {
         val (valid, err) = ImtihanSyncRules.validateWorkerBaseUrl(rawUrl)
         if (!valid) return err
@@ -662,6 +811,7 @@ class ImtihanViewModel(
         _quizState.value = QuizSessionState(
             chapterId = chapterId,
             subjectId = subjectId,
+            sessionId = newSessionId("chapter"),
             title = title,
             mode = "chapter_test",
             customQuestions = null
@@ -746,7 +896,7 @@ class ImtihanViewModel(
         _quizState.value = QuizSessionState(
             chapterId = picked.first().chapterId,
             subjectId = picked.first().subjectId,
-            sessionId = "rapid_fire_5m",
+            sessionId = newSessionId("rapid_fire"),
             title = "5-Min KPK Rapid Fire",
             mode = "rapid_fire",
             currentIndex = 0,
@@ -786,7 +936,7 @@ class ImtihanViewModel(
         _quizState.value = QuizSessionState(
             chapterId = questions.first().chapterId,
             subjectId = questions.first().subjectId,
-            sessionId = "mistake_retry",
+            sessionId = newSessionId("mistake_retry"),
             title = "Mistake Master Drill",
             mode = "mistake_retry",
             customQuestions = questions,
@@ -809,11 +959,13 @@ class ImtihanViewModel(
 
     fun submitExamSession(questions: List<McqQuestionUi>, onFinished: () -> Unit) {
         val current = _quizState.value
+        if (current.isSubmitting || current.latestResult != null || questions.isEmpty()) return
+
         val requiresServerGrading = questions.any { it.correctOptionId == null }
-        if (requiresServerGrading) {
-            _quizState.update { it.copy(isSubmitting = true, latestResult = null) }
+        val immediateResult = if (requiresServerGrading) {
+            null
         } else {
-            val immediateResult = Stage3To8Engines.gradeQuizWithRules(
+            Stage3To8Engines.gradeQuizWithRules(
                 questions = questions,
                 selectedAnswers = current.selectedAnswers,
                 elapsedSeconds = current.elapsedSeconds,
@@ -821,39 +973,62 @@ class ImtihanViewModel(
                 negativeMarkingPenalty = current.negativeMarkingPenalty,
                 passPercentage = current.passPercentage
             ).copy(examMode = current.mode)
-            _quizState.update { it.copy(latestResult = immediateResult, isSubmitting = false) }
+        }
+        _quizState.update {
+            it.copy(
+                isSubmitting = true,
+                sessionError = null,
+                latestResult = immediateResult
+            )
         }
 
         viewModelScope.launch {
-            val subjectName = (subjectsState.value as? UiResourceState.Success)
-                ?.data?.firstOrNull { it.id == current.subjectId }?.name ?: "KPK Subject"
-            val chapterTitle = (chaptersState.value as? UiResourceState.Success)
-                ?.data?.firstOrNull { it.id == current.chapterId }?.title
-            val finalResult = repository.submitExamResult(
-                subjectId = current.subjectId.ifBlank { _selectedSubjectId.value },
-                subjectName = subjectName,
-                chapterId = current.chapterId.takeIf { it.isNotBlank() },
-                chapterTitle = chapterTitle,
-                examMode = current.mode,
-                questions = questions,
-                selectedAnswers = current.selectedAnswers,
-                elapsedSeconds = current.elapsedSeconds,
-                marksPerMcq = current.marksPerMcq,
-                negativeMarkingPenalty = current.negativeMarkingPenalty,
-                passPercentage = current.passPercentage,
-                sessionId = current.sessionId
-            )
-            _quizState.update { it.copy(latestResult = finalResult, isSubmitting = false) }
+            try {
+                val subjectName = (subjectsState.value as? UiResourceState.Success)
+                    ?.data?.firstOrNull { it.id == current.subjectId }?.name ?: "KPK Subject"
+                val chapterTitle = (chaptersState.value as? UiResourceState.Success)
+                    ?.data?.firstOrNull { it.id == current.chapterId }?.title
+                val finalResult = repository.submitExamResult(
+                    subjectId = current.subjectId.ifBlank { _selectedSubjectId.value },
+                    subjectName = subjectName,
+                    chapterId = current.chapterId.takeIf { it.isNotBlank() },
+                    chapterTitle = chapterTitle,
+                    examMode = current.mode,
+                    questions = questions,
+                    selectedAnswers = current.selectedAnswers,
+                    elapsedSeconds = current.elapsedSeconds,
+                    marksPerMcq = current.marksPerMcq,
+                    negativeMarkingPenalty = current.negativeMarkingPenalty,
+                    passPercentage = current.passPercentage,
+                    sessionId = current.sessionId
+                )
+                _quizState.update { it.copy(latestResult = finalResult, isSubmitting = false, sessionError = null) }
+                onFinished()
+            } catch (err: Throwable) {
+                _quizState.update {
+                    it.copy(
+                        isSubmitting = false,
+                        sessionError = err.message ?: "Unable to submit exam result."
+                    )
+                }
+            }
         }
-        onFinished()
     }
 
     fun resetQuiz() {
-        _quizState.value = QuizSessionState(
-            chapterId = _selectedChapterId.value,
-            subjectId = _selectedSubjectId.value,
-            elapsedSeconds = 0
-        )
+        _quizState.update { current ->
+            current.copy(
+                sessionId = newSessionId(current.mode.ifBlank { "chapter" }),
+                currentIndex = 0,
+                selectedAnswers = emptyMap(),
+                markedForReviewIds = emptySet(),
+                elapsedSeconds = 0,
+                isLoadingSession = false,
+                isSubmitting = false,
+                sessionError = null,
+                latestResult = null
+            )
+        }
     }
 
     fun toggleBookmark(
@@ -981,15 +1156,64 @@ class ImtihanViewModel(
         }
     }
 
+    fun pausePdfDownload(pdfId: String) {
+        viewModelScope.launch {
+            repository.pausePdfDownload(pdfId)
+        }
+    }
+
+    fun resumePdfDownload(pdfId: String) {
+        viewModelScope.launch {
+            repository.resumePdfDownload(pdfId)
+        }
+    }
+
+    fun cancelPdfDownload(pdfId: String) {
+        viewModelScope.launch {
+            repository.cancelPdfDownload(pdfId)
+        }
+    }
+
+    fun retryPdfDownload(pdfId: String) {
+        viewModelScope.launch {
+            repository.retryPdfDownload(pdfId)
+        }
+    }
+
+    fun retryAllFailedDownloads() {
+        viewModelScope.launch {
+            repository.retryAllFailedDownloads()
+        }
+    }
+
+    fun downloadOnMobileData(pdfId: String) {
+        viewModelScope.launch {
+            repository.downloadOnMobileData(pdfId)
+        }
+    }
+
+    fun handleNotificationDeepLink(paperId: String, pdfId: String, title: String) {
+        if (pdfId.isBlank() && paperId.isBlank()) return
+        val resolvedPdf = pdfId.ifBlank { paperId }
+        val resolvedPaper = paperId.ifBlank { resolvedPdf }
+        openPdfForReading(resolvedPaper, resolvedPdf, title.ifBlank { "Offline PDF" }, 10)
+        _pendingPdfDeepLink.value = PdfDeepLinkRequest(resolvedPaper, resolvedPdf, title.ifBlank { "Offline PDF" })
+    }
+
+    fun consumePendingPdfDeepLink() {
+        _pendingPdfDeepLink.value = null
+    }
+
     fun clearDownloads() {
         viewModelScope.launch {
             repository.clearAllDownloads()
         }
     }
 
-    fun openPdfForReading(paperId: String, pdfId: String, title: String, totalPages: Int) {
+    fun openPdfForReading(paperId: String, pdfId: String, title: String, totalPages: Int, sizeMb: Double = 0.0) {
         val targetId = pdfId.ifBlank { paperId }
         _activePdfId.value = targetId
+        _activePdfFallbackPages.value = totalPages.coerceAtLeast(1)
         _pdfViewerState.value = PdfViewerUiState(
             paperId = paperId,
             pdfId = targetId,
@@ -997,7 +1221,8 @@ class ImtihanViewModel(
             isDownloading = true,
             errorMessage = null,
             currentPage = 1,
-            zoomPercent = 100
+            zoomPercent = 100,
+            downloadState = DownloadState.QUEUED
         )
         viewModelScope.launch {
             val savedState = repository.getPdfReadingState(targetId)
@@ -1011,33 +1236,19 @@ class ImtihanViewModel(
                         localFilePath = local,
                         isDownloading = false,
                         currentPage = restoredPage,
-                        zoomPercent = restoredZoom
+                        zoomPercent = restoredZoom,
+                        downloadState = DownloadState.COMPLETED,
+                        progressPercent = 100
                     )
                 }
             } else {
-                val downloaded = repository.getOrDownloadPdfFile(paperId, targetId, title, 0.0)
-                _pdfViewerState.update {
-                    downloaded.fold(
-                        onSuccess = { path ->
-                            it.copy(
-                                localFilePath = path,
-                                isDownloading = false,
-                                errorMessage = null,
-                                currentPage = restoredPage,
-                                zoomPercent = restoredZoom
-                            )
-                        },
-                        onFailure = { err ->
-                            it.copy(
-                                localFilePath = null,
-                                isDownloading = false,
-                                errorMessage = err.message ?: "Unable to fetch PDF from Worker/B2.",
-                                currentPage = restoredPage,
-                                zoomPercent = restoredZoom
-                            )
-                        }
-                    )
-                }
+                repository.enqueuePdfDownload(
+                    paperId = paperId,
+                    pdfId = targetId,
+                    title = title,
+                    categoryLabel = "PDF Document",
+                    sizeMb = sizeMb
+                )
             }
         }
     }

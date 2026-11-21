@@ -216,7 +216,7 @@ class Stage2SyncAndApiTests {
             val res = client.downloadPdfToFile(
                 baseUrl = server.url("/v1").toString(),
                 pdfId = "pdf_resume",
-                destinationFile = outFile,
+                targetFile = outFile,
                 expectedSha256 = expectedSha
             )
             assertTrue(res is ApiResult.Success)

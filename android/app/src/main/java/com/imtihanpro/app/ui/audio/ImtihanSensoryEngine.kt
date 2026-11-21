@@ -207,46 +207,59 @@ class AmbientSoundscapePlayer {
                     .build()
 
                 activeTrack = track
-                track.play()
+                try {
+                    track.play()
 
-                val buffer = ShortArray(chunkSamples)
-                var brownState = 0f
-                var rainLp = 0f
-                var phase = 0.0
-                var lfoPhase = 0.0
+                    val buffer = ShortArray(chunkSamples)
+                    var brownState = 0f
+                    var rainLp = 0f
+                    var phase = 0.0
+                    var lfoPhase = 0.0
 
-                while (isActive) {
-                    when (mode) {
-                        AmbientSoundMode.BROWN_NOISE -> {
-                            for (i in 0 until chunkSamples) {
-                                val white = Random.nextFloat() * 2f - 1f
-                                brownState = (brownState + 0.025f * white) / 1.025f
-                                val out = (brownState * 2.2f).coerceIn(-0.45f, 0.45f)
-                                buffer[i] = (out * Short.MAX_VALUE).toInt().toShort()
+                    while (isActive) {
+                        when (mode) {
+                            AmbientSoundMode.BROWN_NOISE -> {
+                                for (i in 0 until chunkSamples) {
+                                    val white = Random.nextFloat() * 2f - 1f
+                                    brownState = (brownState + 0.025f * white) / 1.025f
+                                    val out = (brownState * 2.2f).coerceIn(-0.45f, 0.45f)
+                                    buffer[i] = (out * Short.MAX_VALUE).toInt().toShort()
+                                }
                             }
-                        }
-                        AmbientSoundMode.RAIN -> {
-                            for (i in 0 until chunkSamples) {
-                                val white = Random.nextFloat() * 2f - 1f
-                                rainLp = rainLp * 0.86f + white * 0.14f
-                                val sparkle = if (Random.nextInt(900) == 0) (Random.nextFloat() - 0.5f) * 0.35f else 0f
-                                val out = ((rainLp * 0.9f) + sparkle).coerceIn(-0.35f, 0.35f)
-                                buffer[i] = (out * Short.MAX_VALUE).toInt().toShort()
+                            AmbientSoundMode.RAIN -> {
+                                for (i in 0 until chunkSamples) {
+                                    val white = Random.nextFloat() * 2f - 1f
+                                    rainLp = rainLp * 0.86f + white * 0.14f
+                                    val sparkle = if (Random.nextInt(900) == 0) (Random.nextFloat() - 0.5f) * 0.35f else 0f
+                                    val out = ((rainLp * 0.9f) + sparkle).coerceIn(-0.35f, 0.35f)
+                                    buffer[i] = (out * Short.MAX_VALUE).toInt().toShort()
+                                }
                             }
-                        }
-                        AmbientSoundMode.ALPHA -> {
-                            for (i in 0 until chunkSamples) {
-                                phase += 2.0 * PI * 174.0 / sampleRate
-                                lfoPhase += 2.0 * PI * 0.18 / sampleRate
-                                val mod = 0.65 + 0.35 * sin(lfoPhase)
-                                val base = sin(phase) * 0.22 + sin(phase * 1.5) * 0.08
-                                val out = (base * mod).toFloat().coerceIn(-0.32f, 0.32f)
-                                buffer[i] = (out * Short.MAX_VALUE).toInt().toShort()
+                            AmbientSoundMode.ALPHA -> {
+                                for (i in 0 until chunkSamples) {
+                                    phase += 2.0 * PI * 174.0 / sampleRate
+                                    lfoPhase += 2.0 * PI * 0.18 / sampleRate
+                                    val mod = 0.65 + 0.35 * sin(lfoPhase)
+                                    val base = sin(phase) * 0.22 + sin(phase * 1.5) * 0.08
+                                    val out = (base * mod).toFloat().coerceIn(-0.32f, 0.32f)
+                                    buffer[i] = (out * Short.MAX_VALUE).toInt().toShort()
+                                }
                             }
+                            AmbientSoundMode.NONE -> break
                         }
-                        AmbientSoundMode.NONE -> break
+                        if (!isActive) break
+                        track.write(buffer, 0, chunkSamples)
                     }
-                    track.write(buffer, 0, chunkSamples)
+                } finally {
+                    runCatching {
+                        track.pause()
+                        track.flush()
+                        track.stop()
+                    }
+                    runCatching { track.release() }
+                    if (activeTrack === track) {
+                        activeTrack = null
+                    }
                 }
             }
         }
@@ -256,13 +269,6 @@ class AmbientSoundscapePlayer {
         val oldJob = playJob
         playJob = null
         oldJob?.cancel()
-        runCatching {
-            activeTrack?.pause()
-            activeTrack?.flush()
-            activeTrack?.stop()
-            activeTrack?.release()
-        }
-        activeTrack = null
     }
 }
 

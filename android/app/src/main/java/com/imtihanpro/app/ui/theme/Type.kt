@@ -39,6 +39,8 @@ fun urduTextStyle(
     textDirection = TextDirection.Rtl,
 )
 
+fun TextStyle.tabular(): TextStyle = copy(fontFeatureSettings = "tnum")
+
 val ImtihanTypography = Typography(
     displaySmall = TextStyle(
         fontFamily = ImtihanSansFamily,

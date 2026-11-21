@@ -1,5 +1,10 @@
 package com.imtihanpro.app.ui.theme
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.TweenSpec
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Shapes
 import androidx.compose.ui.unit.dp
@@ -27,10 +32,16 @@ object ImtihanMotion {
     const val fastMs = 150
     const val standardMs = 220
     const val emphasisMs = 300
+
+    fun <T> fastTween(): TweenSpec<T> = tween(durationMillis = fastMs, easing = FastOutSlowInEasing)
+    fun <T> standardTween(): TweenSpec<T> = tween(durationMillis = standardMs, easing = FastOutSlowInEasing)
+    fun <T> emphasisTween(): TweenSpec<T> = tween(durationMillis = emphasisMs, easing = FastOutSlowInEasing)
+    fun <T> snappySpring() = spring<T>(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow)
 }
 
 object ImtihanDimensions {
     val minTouchTarget = 48.dp
+    val topBarHeight = 56.dp
     val iconSmall = 18.dp
     val iconMedium = 22.dp
     val iconLarge = 28.dp

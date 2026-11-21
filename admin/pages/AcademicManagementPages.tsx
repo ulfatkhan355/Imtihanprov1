@@ -30,6 +30,8 @@ export function AcademicManagementPages({
   const [selectedClass, setSelectedClass] = useState<ClassLevel | 'all'>('all');
   const [selectedBoard, setSelectedBoard] = useState<BoardCode | 'all'>('all');
   const [busy, setBusy] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const [showSubjectModal, setShowSubjectModal] = useState(false);
   const [subName, setSubName] = useState('');
@@ -156,6 +158,18 @@ export function AcademicManagementPages({
     }
   };
 
+  const handleDeleteRecord = async (id: string, fn: (targetId: string) => Promise<void> | void, fallbackMsg: string) => {
+    setDeletingId(id);
+    setActionError(null);
+    try {
+      await fn(id);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : fallbackMsg);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const effectiveState: ViewLoadState =
     (mode === 'subjects' && filteredSubjects.length === 0) ||
     (mode === 'chapters' && filteredChapters.length === 0)
@@ -245,6 +259,22 @@ export function AcademicManagementPages({
           )}
         </div>
       </div>
+
+      {actionError && (
+        <div
+          role="alert"
+          className="rounded-xl border border-[#DC2626]/40 bg-[#FEF2F2] px-4 py-3 text-xs font-medium text-[#991B1B] dark:border-[#EF4444]/40 dark:bg-[#450A0A]/40 dark:text-[#FECACA] flex items-center justify-between gap-3"
+        >
+          <span>{actionError}</span>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="underline font-semibold shrink-0"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       <StateGate
         state={effectiveState}
@@ -378,9 +408,12 @@ export function AcademicManagementPages({
                     <td className="px-5 py-3.5 text-right">
                       <button
                         type="button"
+                        disabled={deletingId === sub.id}
                         aria-label={`Delete subject ${sub.name}`}
-                        onClick={() => void onDeleteSubject(sub.id)}
-                        className="p-1.5 rounded text-[#64748B] hover:text-[#DC2626] dark:text-[#8FA7D1] dark:hover:text-[#F87171]"
+                        onClick={() =>
+                          void handleDeleteRecord(sub.id, onDeleteSubject, 'Failed to delete subject.')
+                        }
+                        className="p-1.5 rounded text-[#64748B] hover:text-[#DC2626] dark:text-[#8FA7D1] dark:hover:text-[#F87171] disabled:opacity-50"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -456,9 +489,12 @@ export function AcademicManagementPages({
                           </button>
                           <button
                             type="button"
+                            disabled={deletingId === ch.id}
                             aria-label={`Delete chapter ${ch.title}`}
-                            onClick={() => void onDeleteChapter(ch.id)}
-                            className="p-1 rounded text-[#64748B] hover:text-[#DC2626] dark:text-[#8FA7D1] dark:hover:text-[#F87171]"
+                            onClick={() =>
+                              void handleDeleteRecord(ch.id, onDeleteChapter, 'Failed to delete chapter.')
+                            }
+                            className="p-1 rounded text-[#64748B] hover:text-[#DC2626] dark:text-[#8FA7D1] dark:hover:text-[#F87171] disabled:opacity-50"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>

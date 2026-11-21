@@ -987,6 +987,9 @@ export interface SignedDownloadUrlResponse {
   downloadUrl: string;
   presignedB2Url: string | null;
   expiresInSeconds: number;
+  fileSizeBytes?: number;
+  checksumSha256?: string;
+  acceptRanges?: boolean;
 }
 
 export interface ApiEnvelope<T> {

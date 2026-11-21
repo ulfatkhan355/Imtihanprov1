@@ -48,6 +48,8 @@ export function LibraryAndStudentsPages({
   const [pdfSizeMb, setPdfSizeMb] = useState(2.1);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [libraryError, setLibraryError] = useState<string | null>(null);
+  const [deletingPdfId, setDeletingPdfId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const filteredPdfs = useMemo(() => {
@@ -131,6 +133,19 @@ export function LibraryAndStudentsPages({
     }
   };
 
+  const handleDeletePdfRow = async (pdfId: string) => {
+    if (!onDeletePdf) return;
+    setDeletingPdfId(pdfId);
+    setLibraryError(null);
+    try {
+      await onDeletePdf(pdfId);
+    } catch (err) {
+      setLibraryError(err instanceof Error ? err.message : 'Failed to delete PDF resource.');
+    } finally {
+      setDeletingPdfId(null);
+    }
+  };
+
   if (mode === 'pdf-library') {
     return (
       <div className="space-y-6">
@@ -187,6 +202,22 @@ export function LibraryAndStudentsPages({
             {connectionMode === 'live_api' ? 'Upload PDF to B2' : 'Register PDF (Preview)'}
           </button>
         </div>
+
+        {libraryError && (
+          <div
+            role="alert"
+            className="rounded-xl border border-[#DC2626]/40 bg-[#FEF2F2] px-4 py-3 text-xs font-medium text-[#991B1B] dark:border-[#EF4444]/40 dark:bg-[#450A0A]/40 dark:text-[#FECACA] flex items-center justify-between gap-3"
+          >
+            <span>{libraryError}</span>
+            <button
+              type="button"
+              onClick={() => setLibraryError(null)}
+              className="underline font-semibold shrink-0"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         <div className="rounded-xl border border-[#CBD8EE] bg-white overflow-x-auto dark:border-[#223B70] dark:bg-[#0D1B38]">
           {filteredPdfs.length === 0 ? (
@@ -254,9 +285,10 @@ export function LibraryAndStudentsPages({
                         {onDeletePdf && (
                           <button
                             type="button"
+                            disabled={deletingPdfId === pdf.id}
                             aria-label={`Delete PDF ${pdf.title}`}
-                            onClick={() => void onDeletePdf(pdf.id)}
-                            className="p-1.5 rounded text-[#64748B] hover:text-[#DC2626] dark:text-[#8FA7D1] dark:hover:text-[#F87171]"
+                            onClick={() => void handleDeletePdfRow(pdf.id)}
+                            className="p-1.5 rounded text-[#64748B] hover:text-[#DC2626] dark:text-[#8FA7D1] dark:hover:text-[#F87171] disabled:opacity-50"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>

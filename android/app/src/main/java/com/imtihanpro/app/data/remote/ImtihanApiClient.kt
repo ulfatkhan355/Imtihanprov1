@@ -1,5 +1,7 @@
 package com.imtihanpro.app.data.remote
 
+import android.os.StatFs
+import com.imtihanpro.app.domain.engine.PdfDownloadEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Cache
@@ -15,6 +17,36 @@ import java.io.FileOutputStream
 import java.net.URLEncoder
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
+
+data class PdfHeadProbeResult(
+    val contentLength: Long,
+    val etag: String?,
+    val acceptRangesBytes: Boolean,
+    val sha256Hint: String?
+)
+
+sealed interface PdfDownloadOutcome {
+    data class Success(
+        val file: File,
+        val totalBytes: Long,
+        val etag: String?,
+        val verifiedSha256: String
+    ) : PdfDownloadOutcome
+
+    data object PausedOrCancelled : PdfDownloadOutcome
+    data object RangeResetRequired : PdfDownloadOutcome
+
+    data class CorruptFile(val code: String, val message: String) : PdfDownloadOutcome
+    data class InsufficientStorage(val availableBytes: Long, val requiredBytes: Long) : PdfDownloadOutcome
+    data class HttpFailure(
+        val statusCode: Int,
+        val code: String,
+        val message: String,
+        val retryAfterHeader: String?
+    ) : PdfDownloadOutcome
+
+    data class NetworkFailure(val message: String) : PdfDownloadOutcome
+}
 
 sealed interface ApiResult<out T> {
     data class Success<T>(val data: T) : ApiResult<T>
@@ -914,6 +946,26 @@ class ImtihanApiClient(
 
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
+    /**
+     * Dedicated OkHttpClient tuned for large PDF streaming on unstable KPK 2G/3G networks:
+     * 15s connect, 30s socket read/write, unlimited total call duration, identity transfer encoding.
+     */
+    private val downloadHttpClient: OkHttpClient by lazy {
+        httpClient.newBuilder()
+            .cache(null)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .callTimeout(0, TimeUnit.SECONDS)
+            .addNetworkInterceptor { chain ->
+                val req = chain.request().newBuilder()
+                    .header("Accept-Encoding", "identity")
+                    .build()
+                chain.proceed(req)
+            }
+            .build()
+    }
+
     private fun encode(value: String): String = URLEncoder.encode(value, "UTF-8")
 
     private fun Request.Builder.withStudentAuth(guestDeviceId: String, bearerToken: String?): Request.Builder {
@@ -1465,7 +1517,8 @@ class ImtihanApiClient(
         chapterId: String?,
         plannedDateIso: String,
         estimatedMinutes: Int,
-        taskType: String
+        taskType: String,
+        id: String? = null
     ): ApiResult<ApiStudyPlanTaskDto> {
         val payload = JSONObject()
             .put("title", title)
@@ -1474,6 +1527,9 @@ class ImtihanApiClient(
             .put("plannedDateIso", plannedDateIso)
             .put("estimatedMinutes", estimatedMinutes)
             .put("taskType", taskType)
+        if (!id.isNullOrBlank()) {
+            payload.put("id", id)
+        }
         val req = Request.Builder()
             .url("${ApiConfig.normalizeBaseUrl(baseUrl)}/students/me/planner/tasks")
             .withStudentAuth(guestDeviceId, bearerToken)
@@ -1496,6 +1552,38 @@ class ImtihanApiClient(
             .url("${ApiConfig.normalizeBaseUrl(baseUrl)}/students/me/planner/tasks/${encode(taskId)}")
             .withStudentAuth(guestDeviceId, bearerToken)
             .patch(payload.toString().toRequestBody(jsonMediaType))
+            .build()
+        return executeJson(req) { Unit }
+    }
+
+    suspend fun deleteStudyPlanTask(
+        baseUrl: String,
+        guestDeviceId: String,
+        bearerToken: String?,
+        taskId: String
+    ): ApiResult<Unit> {
+        val req = Request.Builder()
+            .url("${ApiConfig.normalizeBaseUrl(baseUrl)}/students/me/planner/tasks/${encode(taskId)}")
+            .withStudentAuth(guestDeviceId, bearerToken)
+            .delete()
+            .build()
+        return executeJson(req) { Unit }
+    }
+
+    suspend fun updatePlannerGoals(
+        baseUrl: String,
+        guestDeviceId: String,
+        bearerToken: String?,
+        dailyTargetMinutes: Int,
+        examCountdownDateIso: String?
+    ): ApiResult<Unit> {
+        val payload = JSONObject()
+            .put("dailyTargetMinutes", dailyTargetMinutes)
+            .put("examCountdownDateIso", examCountdownDateIso ?: JSONObject.NULL)
+        val req = Request.Builder()
+            .url("${ApiConfig.normalizeBaseUrl(baseUrl)}/students/me/planner")
+            .withStudentAuth(guestDeviceId, bearerToken)
+            .put(payload.toString().toRequestBody(jsonMediaType))
             .build()
         return executeJson(req) { Unit }
     }
@@ -1560,74 +1648,199 @@ class ImtihanApiClient(
     }
 
     /**
-     * Streams a real PDF from Worker `/v1/pdfs/{pdfId}/download` (backed by Backblaze B2)
-     * into a temporary file (supporting HTTP Range resume when `.tmp` partial bytes exist),
-     * reports real transfer progress, validates `%PDF-` + optional SHA-256, and atomically moves to targetFile.
+     * Lightweight HEAD probe to discover exact byte size, strong ETag, and Accept-Ranges support
+     * before triggering mobile-data warnings or Range resumes.
      */
-    suspend fun downloadPdfToFile(
+    suspend fun probePdfHead(
         baseUrl: String,
-        pdfId: String,
-        targetFile: File,
-        expectedSha256: String? = null,
-        onProgress: (bytesRead: Long, totalBytes: Long) -> Unit = { _, _ -> }
-    ): ApiResult<File> = withContext(Dispatchers.IO) {
+        pdfId: String
+    ): ApiResult<PdfHeadProbeResult> = withContext(Dispatchers.IO) {
         val url = "${ApiConfig.normalizeBaseUrl(baseUrl)}/pdfs/${encode(pdfId)}/download?mode=stream"
-        targetFile.parentFile?.mkdirs()
-        val tmpFile = File(targetFile.parentFile, "${targetFile.name}.tmp")
-        val existingBytes = if (tmpFile.exists() && tmpFile.length() > 0L) tmpFile.length() else 0L
-
-        val reqBuilder = Request.Builder().url(url).get()
-        if (existingBytes > 0L) {
-            reqBuilder.header("Range", "bytes=$existingBytes-")
-        }
-
+        val req = Request.Builder().url(url).head().build()
         try {
-            httpClient.newCall(reqBuilder.build()).execute().use { response ->
-                // If Range was rejected (416), discard partial tmp file cleanly
-                if (response.code == 416 && tmpFile.exists()) {
-                    tmpFile.delete()
-                    return@withContext ApiResult.Failure("Partial PDF cache expired; please retry download.", 416, "RANGE_RESET")
-                }
+            downloadHttpClient.newCall(req).execute().use { response ->
                 if (!response.isSuccessful) {
                     val bodyText = response.body?.string().orEmpty()
                     return@withContext parseErrorFailure(response.code, bodyText)
                 }
-                val body = response.body
-                    ?: return@withContext ApiResult.Failure("Empty PDF response from server.", response.code, "EMPTY_BODY")
+                val contentLength = response.header("Content-Length")?.toLongOrNull() ?: -1L
+                val strongEtag = PdfDownloadEngine.normalizeStrongEtag(response.header("ETag"))
+                val acceptRanges = response.header("Accept-Ranges")?.contains("bytes", ignoreCase = true) == true
+                val shaHint = PdfDownloadEngine.extractSha256FromEtagIfHex(strongEtag)
+                ApiResult.Success(
+                    PdfHeadProbeResult(
+                        contentLength = contentLength,
+                        etag = strongEtag,
+                        acceptRangesBytes = acceptRanges,
+                        sha256Hint = shaHint
+                    )
+                )
+            }
+        } catch (err: Exception) {
+            ApiResult.Failure(err.message ?: "Unable to inspect PDF metadata.", null, "NETWORK_EXCEPTION")
+        }
+    }
 
-                val appendMode = response.code == 206 && existingBytes > 0L
-                val remainingLength = body.contentLength()
-                val expectedTotalBytes = if (remainingLength > 0L) {
-                    if (appendMode) existingBytes + remainingLength else remainingLength
-                } else {
-                    -1L
+    /**
+     * Production-grade resumable PDF downloader for unstable 2G/3G networks:
+     * - StatFs free-space check before transfer
+     * - Range + strong If-Range resume into persistent `.tmp`
+     * - 1 MB checkpoint flushing + live speed/bytes callback + cancellation guard
+     * - 416 detection -> RangeResetRequired; If-Range mismatch (200) -> truncate & restart cleanly
+     * - Strict EOF verification: exact expected bytes + `%PDF-` header + 64-hex SHA-256
+     * - Deletes corrupt files immediately and atomically renames verified `.tmp` -> targetFile
+     */
+    suspend fun downloadPdfResumable(
+        baseUrl: String,
+        pdfId: String,
+        targetFile: File,
+        expectedSha256: String? = null,
+        expectedTotalBytes: Long = -1L,
+        knownEtag: String? = null,
+        isCancelled: () -> Boolean = { false },
+        onVerifying: () -> Unit = {},
+        onProgress: (bytesRead: Long, totalBytes: Long, speedBytesPerSec: Long, etag: String?) -> Unit = { _, _, _, _ -> }
+    ): PdfDownloadOutcome = withContext(Dispatchers.IO) {
+        if (isCancelled()) return@withContext PdfDownloadOutcome.PausedOrCancelled
+
+        val parentDir = targetFile.parentFile ?: File(".")
+        parentDir.mkdirs()
+        val tmpFile = File(parentDir, "${targetFile.name}.tmp")
+        val existingBytes = if (tmpFile.exists() && tmpFile.length() > 0L) tmpFile.length() else 0L
+
+        val availableBytes = runCatching { StatFs(parentDir.absolutePath).availableBytes }.getOrDefault(Long.MAX_VALUE)
+        if (!PdfDownloadEngine.hasSufficientStorage(availableBytes, expectedTotalBytes, existingBytes)) {
+            val remaining = if (expectedTotalBytes > 0L) (expectedTotalBytes - existingBytes).coerceAtLeast(0L) else 0L
+            return@withContext PdfDownloadOutcome.InsufficientStorage(
+                availableBytes = availableBytes,
+                requiredBytes = remaining + PdfDownloadEngine.FREE_STORAGE_MARGIN_BYTES
+            )
+        }
+
+        val url = "${ApiConfig.normalizeBaseUrl(baseUrl)}/pdfs/${encode(pdfId)}/download?mode=stream"
+        val reqBuilder = Request.Builder().url(url).get()
+        if (existingBytes > 0L) {
+            reqBuilder.header("Range", "bytes=$existingBytes-")
+            val strongIfRange = PdfDownloadEngine.normalizeStrongEtag(knownEtag)
+            if (strongIfRange != null) {
+                reqBuilder.header("If-Range", strongIfRange)
+            }
+        }
+
+        try {
+            downloadHttpClient.newCall(reqBuilder.build()).execute().use { response ->
+                if (response.code == 416) {
+                    if (tmpFile.exists()) tmpFile.delete()
+                    return@withContext PdfDownloadOutcome.RangeResetRequired
                 }
+                if (!response.isSuccessful) {
+                    val retryAfter = response.header("Retry-After")
+                    val bodyText = response.body?.string().orEmpty()
+                    val failure = parseErrorFailure(response.code, bodyText)
+                    return@withContext PdfDownloadOutcome.HttpFailure(
+                        statusCode = response.code,
+                        code = failure.code,
+                        message = failure.message,
+                        retryAfterHeader = retryAfter
+                    )
+                }
+
+                val body = response.body
+                    ?: return@withContext PdfDownloadOutcome.HttpFailure(
+                        statusCode = response.code,
+                        code = "EMPTY_BODY",
+                        message = "Empty PDF response from server.",
+                        retryAfterHeader = null
+                    )
+
+                val responseEtag = PdfDownloadEngine.normalizeStrongEtag(response.header("ETag"))
+                    ?: PdfDownloadEngine.normalizeStrongEtag(knownEtag)
+                val rangeSpec = PdfDownloadEngine.parseContentRange(response.header("Content-Range"))
+                val appendMode = response.code == 206 && existingBytes > 0L
+
+                val bodyLen = body.contentLength()
+                val resolvedTotalBytes = when {
+                    rangeSpec != null && rangeSpec.totalBytes > 0L -> rangeSpec.totalBytes
+                    appendMode && bodyLen > 0L -> existingBytes + bodyLen
+                    !appendMode && bodyLen > 0L -> bodyLen
+                    expectedTotalBytes > 0L -> expectedTotalBytes
+                    else -> -1L
+                }
+
+                if (resolvedTotalBytes > 0L) {
+                    val availNow = runCatching { StatFs(parentDir.absolutePath).availableBytes }.getOrDefault(Long.MAX_VALUE)
+                    val already = if (appendMode) existingBytes else 0L
+                    if (!PdfDownloadEngine.hasSufficientStorage(availNow, resolvedTotalBytes, already)) {
+                        val rem = (resolvedTotalBytes - already).coerceAtLeast(0L)
+                        return@withContext PdfDownloadOutcome.InsufficientStorage(
+                            availableBytes = availNow,
+                            requiredBytes = rem + PdfDownloadEngine.FREE_STORAGE_MARGIN_BYTES
+                        )
+                    }
+                }
+
                 var transferredBytes = if (appendMode) existingBytes else 0L
+                val startTimeMs = System.currentTimeMillis()
+                var sessionBytes = 0L
+                var bytesSinceCheckpoint = 0L
+
+                onProgress(transferredBytes, resolvedTotalBytes, 0L, responseEtag)
 
                 body.byteStream().use { input ->
                     FileOutputStream(tmpFile, appendMode).use { output ->
-                        val buffer = ByteArray(8192)
+                        val buffer = ByteArray(16 * 1024)
                         while (true) {
+                            if (isCancelled()) {
+                                output.flush()
+                                return@withContext PdfDownloadOutcome.PausedOrCancelled
+                            }
                             val read = input.read(buffer)
                             if (read == -1) break
                             output.write(buffer, 0, read)
                             transferredBytes += read
-                            onProgress(transferredBytes, expectedTotalBytes)
+                            sessionBytes += read
+                            bytesSinceCheckpoint += read
+                            if (bytesSinceCheckpoint >= PdfDownloadEngine.CHUNK_CHECKPOINT_BYTES) {
+                                output.flush()
+                                bytesSinceCheckpoint = 0L
+                                val elapsedSec = ((System.currentTimeMillis() - startTimeMs).coerceAtLeast(1L)) / 1000.0
+                                val speedBps = (sessionBytes / elapsedSec).toLong()
+                                onProgress(transferredBytes, resolvedTotalBytes, speedBps, responseEtag)
+                            }
                         }
+                        output.flush()
                     }
                 }
 
-                if (!tmpFile.exists() || tmpFile.length() <= 5L) {
-                    tmpFile.delete()
-                    return@withContext ApiResult.Failure("Downloaded PDF is empty.", 502, "EMPTY_PDF")
+                if (isCancelled()) {
+                    return@withContext PdfDownloadOutcome.PausedOrCancelled
                 }
 
-                // Verify %PDF- header + compute SHA-256 over the complete assembled file
+                val elapsedSec = ((System.currentTimeMillis() - startTimeMs).coerceAtLeast(1L)) / 1000.0
+                val finalSpeedBps = (sessionBytes / elapsedSec).toLong()
+                onProgress(transferredBytes, resolvedTotalBytes, finalSpeedBps, responseEtag)
+
+                onVerifying()
+
+                val actualSize = tmpFile.length()
+                if (!tmpFile.exists() || actualSize <= 5L) {
+                    tmpFile.delete()
+                    return@withContext PdfDownloadOutcome.CorruptFile("EMPTY_PDF", "Downloaded PDF file is empty.")
+                }
+
+                if (resolvedTotalBytes > 0L && actualSize != resolvedTotalBytes) {
+                    tmpFile.delete()
+                    return@withContext PdfDownloadOutcome.CorruptFile(
+                        "SIZE_MISMATCH",
+                        "Incomplete file ($actualSize bytes vs expected $resolvedTotalBytes bytes). Tap Retry."
+                    )
+                }
+
                 val digest = MessageDigest.getInstance("SHA-256")
                 val header = ByteArray(5)
                 var headerRead = 0
                 tmpFile.inputStream().use { verifyIn ->
-                    val buf = ByteArray(8192)
+                    val buf = ByteArray(16 * 1024)
                     while (true) {
                         val n = verifyIn.read(buf)
                         if (n == -1) break
@@ -1643,24 +1856,22 @@ class ImtihanApiClient(
                 val magic = String(header, 0, headerRead, Charsets.US_ASCII)
                 if (headerRead < 5 || magic != "%PDF-") {
                     tmpFile.delete()
-                    return@withContext ApiResult.Failure(
-                        "Downloaded stream is not a valid PDF document (invalid header).",
-                        502,
-                        "INVALID_PDF_STREAM"
+                    return@withContext PdfDownloadOutcome.CorruptFile(
+                        "INVALID_PDF_STREAM",
+                        "Downloaded file is not a valid PDF document (%PDF- header missing)."
                     )
                 }
 
-                val normalizedExpected = expectedSha256?.trim()?.lowercase()
-                if (!normalizedExpected.isNullOrBlank() && Regex("^[0-9a-f]{64}$").matches(normalizedExpected)) {
-                    val actualHex = digest.digest().joinToString("") { "%02x".format(it) }
-                    if (actualHex != normalizedExpected) {
-                        tmpFile.delete()
-                        return@withContext ApiResult.Failure(
-                            "Downloaded PDF failed SHA-256 integrity verification.",
-                            502,
-                            "CHECKSUM_MISMATCH"
-                        )
-                    }
+                val actualSha256 = digest.digest().joinToString("") { "%02x".format(it) }
+                val authoritativeSha = PdfDownloadEngine.extractSha256FromEtagIfHex(responseEtag)
+                    ?: expectedSha256?.trim()?.lowercase()?.takeIf { PdfDownloadEngine.isValidSha256Hex(it) }
+
+                if (authoritativeSha != null && actualSha256 != authoritativeSha) {
+                    tmpFile.delete()
+                    return@withContext PdfDownloadOutcome.CorruptFile(
+                        "CHECKSUM_MISMATCH",
+                        "PDF SHA-256 verification failed. Corrupt file removed; tap Retry."
+                    )
                 }
 
                 if (targetFile.exists()) targetFile.delete()
@@ -1668,10 +1879,57 @@ class ImtihanApiClient(
                     tmpFile.copyTo(targetFile, overwrite = true)
                     tmpFile.delete()
                 }
-                ApiResult.Success(targetFile)
+                PdfDownloadOutcome.Success(
+                    file = targetFile,
+                    totalBytes = actualSize,
+                    etag = responseEtag,
+                    verifiedSha256 = actualSha256
+                )
             }
         } catch (err: Exception) {
-            ApiResult.Failure(err.message ?: "Unable to download PDF.", null, "NETWORK_EXCEPTION")
+            PdfDownloadOutcome.NetworkFailure(err.message ?: "Network connection interrupted while downloading PDF.")
+        }
+    }
+
+    /**
+     * Backward-compatible wrapper preserving `ApiResult<File>` for callers and tests.
+     * Automatically retries once from byte 0 when the server returns 416 Range Not Satisfiable.
+     */
+    suspend fun downloadPdfToFile(
+        baseUrl: String,
+        pdfId: String,
+        targetFile: File,
+        expectedSha256: String? = null,
+        onProgress: (bytesRead: Long, totalBytes: Long) -> Unit = { _, _ -> }
+    ): ApiResult<File> {
+        var outcome = downloadPdfResumable(
+            baseUrl = baseUrl,
+            pdfId = pdfId,
+            targetFile = targetFile,
+            expectedSha256 = expectedSha256,
+            onProgress = { read, total, _, _ -> onProgress(read, total) }
+        )
+        if (outcome is PdfDownloadOutcome.RangeResetRequired) {
+            outcome = downloadPdfResumable(
+                baseUrl = baseUrl,
+                pdfId = pdfId,
+                targetFile = targetFile,
+                expectedSha256 = expectedSha256,
+                onProgress = { read, total, _, _ -> onProgress(read, total) }
+            )
+        }
+        return when (outcome) {
+            is PdfDownloadOutcome.Success -> ApiResult.Success(outcome.file)
+            is PdfDownloadOutcome.HttpFailure -> ApiResult.Failure(outcome.message, outcome.statusCode, outcome.code)
+            is PdfDownloadOutcome.CorruptFile -> ApiResult.Failure(outcome.message, 502, outcome.code)
+            is PdfDownloadOutcome.InsufficientStorage -> ApiResult.Failure(
+                "Not enough free storage space to download this PDF.",
+                null,
+                "INSUFFICIENT_STORAGE"
+            )
+            is PdfDownloadOutcome.RangeResetRequired -> ApiResult.Failure("Range reset failed.", 416, "RANGE_RESET")
+            is PdfDownloadOutcome.PausedOrCancelled -> ApiResult.Failure("Download paused.", null, "PAUSED")
+            is PdfDownloadOutcome.NetworkFailure -> ApiResult.Failure(outcome.message, null, "NETWORK_EXCEPTION")
         }
     }
 

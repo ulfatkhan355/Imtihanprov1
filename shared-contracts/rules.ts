@@ -100,13 +100,21 @@ export function gradeQuizSubmission(
   submission: ApiQuizSubmissionRequest
 ): ApiQuizResultResponse {
   const mcqMap = new Map(mcqs.map((m) => [m.id, m]));
+  const dedupedByMcqId = new Map<string, ApiQuizSubmissionRequest['answers'][number]>();
+  for (const ans of submission.answers) {
+    if (ans?.mcqId) {
+      dedupedByMcqId.set(ans.mcqId, ans);
+    }
+  }
+  const uniqueAnswers = Array.from(dedupedByMcqId.values());
+
   let correctCount = 0;
   let incorrectCount = 0;
   let unansweredCount = 0;
 
   const topicBuckets = new Map<string, { correct: number; total: number }>();
 
-  const perQuestionFeedback = submission.answers.map((ans) => {
+  const perQuestionFeedback = uniqueAnswers.map((ans) => {
     const item = mcqMap.get(ans.mcqId);
     const topicName = item?.topicTitle?.trim() || 'General';
     const bucket = topicBuckets.get(topicName) ?? { correct: 0, total: 0 };
@@ -151,7 +159,7 @@ export function gradeQuizSubmission(
     };
   });
 
-  const totalQuestions = submission.answers.length;
+  const totalQuestions = uniqueAnswers.length;
   const marksPerMcq = Math.max(0.5, Number(submission.marksPerMcq ?? 1));
   const penalty = Math.max(0, Number(submission.negativeMarkingPenalty ?? 0));
   const passPercentage = Math.max(1, Math.min(100, Number(submission.passPercentage ?? 40)));

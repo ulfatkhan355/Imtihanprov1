@@ -41,6 +41,9 @@ function estimateRouteD1Cost(method: string, path: string, response: Response): 
   if (isEdgeOr304) {
     return { reads: 0, writes: 0 };
   }
+  if (method === 'HEAD') {
+    return { reads: 2, writes: 0 };
+  }
   if (method === 'GET') {
     if (path.startsWith('/v1/search')) return { reads: 80, writes: 0 };
     if (path.startsWith('/v1/students/me/insights')) return { reads: 120, writes: 0 };
@@ -76,8 +79,8 @@ export async function handleWorkerRequest(
       const ip = getClientIp(request);
       if (path.startsWith('/v1/agent')) {
         await enforceRateLimit(env, `agent:${ip}`, 30, 60_000);
-      } else if (method === 'GET' && !isPrivateRoute(path)) {
-        // Zero-D1-write per-isolate guard for public GETs
+      } else if ((method === 'GET' || method === 'HEAD') && !isPrivateRoute(path)) {
+        // Zero-D1-write per-isolate guard for public GET/HEAD
         enforceInMemoryRateLimit(`get:${ip}`, 240, 60_000);
       } else if (!path.startsWith('/v1/admin/login') && !path.startsWith('/v1/admin/bootstrap')) {
         await enforceRateLimit(env, `api:${ip}`, 150, 60_000);

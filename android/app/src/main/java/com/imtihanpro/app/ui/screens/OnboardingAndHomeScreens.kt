@@ -1,9 +1,12 @@
 package com.imtihanpro.app.ui.screens
 
-import androidx.compose.animation.core.Spring
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,21 +28,21 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Bolt
-import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.EditNote
-import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Quiz
 import androidx.compose.material.icons.outlined.ReportProblem
@@ -53,6 +56,7 @@ import androidx.compose.material.icons.outlined.TrackChanges
 import androidx.compose.material.icons.outlined.VolumeOff
 import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -71,9 +75,11 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -91,6 +97,7 @@ import com.imtihanpro.app.ui.components.AnimatedProgressRing
 import com.imtihanpro.app.ui.components.ImtihanBrandEmblem
 import com.imtihanpro.app.ui.components.ImtihanEmptyView
 import com.imtihanpro.app.ui.components.ImtihanErrorView
+import com.imtihanpro.app.ui.components.ImtihanHeroCard
 import com.imtihanpro.app.ui.components.ImtihanMetricTile
 import com.imtihanpro.app.ui.components.ImtihanPrimaryButton
 import com.imtihanpro.app.ui.components.ImtihanProgressBar
@@ -102,25 +109,25 @@ import com.imtihanpro.app.ui.components.OfflineModeBanner
 import com.imtihanpro.app.ui.components.SilverBlueCanvas
 import com.imtihanpro.app.ui.components.SilverBlueCard
 import com.imtihanpro.app.ui.components.SubjectVectorIcon
-import com.imtihanpro.app.ui.components.ZeroPillMetaLine
 import com.imtihanpro.app.ui.theme.ImtihanDimensions
+import com.imtihanpro.app.ui.theme.ImtihanMotion
 import com.imtihanpro.app.ui.theme.ImtihanRadii
 import com.imtihanpro.app.ui.theme.ImtihanSpacing
 import com.imtihanpro.app.ui.theme.LocalImtihanColors
+import com.imtihanpro.app.ui.theme.tabular
 import com.imtihanpro.app.ui.viewmodel.AppShellState
 import kotlinx.coroutines.delay
 
 /**
- * Screen 1: Splash Screen (Apple-Inspired Minimal Silver Blue Launch)
+ * Screen 1: Splash Screen (Deep Cobalt & Silver Blue Atmospheric Launch)
  */
 @Composable
 fun SplashScreen(onFinished: () -> Unit) {
-    val colors = LocalImtihanColors.current
     val latestOnFinished by rememberUpdatedState(onFinished)
     var emblemVisible by remember { mutableStateOf(false) }
     val emblemScale by animateFloatAsState(
-        targetValue = if (emblemVisible) 1f else 0.78f,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMediumLow),
+        targetValue = if (emblemVisible) 1f else 0.82f,
+        animationSpec = ImtihanMotion.snappySpring(),
         label = "splash_scale"
     )
     LaunchedEffect(Unit) {
@@ -129,51 +136,79 @@ fun SplashScreen(onFinished: () -> Unit) {
         latestOnFinished()
     }
 
-    SilverBlueCanvas {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF0B1427),
+                        Color(0xFF13264F),
+                        Color(0xFF0D1422)
+                    )
+                )
+            )
+            .padding(ImtihanSpacing.xl)
+    ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(ImtihanSpacing.xl),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            modifier = Modifier.align(Alignment.Center),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Surface(
-                shape = RoundedCornerShape(24.dp),
-                color = colors.cardSurface,
-                border = BorderStroke(1.dp, colors.cardBorder),
+                shape = RoundedCornerShape(26.dp),
+                color = Color(0xFF1A2D57),
+                border = BorderStroke(1.dp, Color(0xFF83A8FF).copy(alpha = 0.45f)),
                 modifier = Modifier
-                    .size(92.dp)
+                    .size(96.dp)
                     .graphicsLayer {
                         scaleX = emblemScale
                         scaleY = emblemScale
                     }
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    ImtihanBrandEmblem(modifier = Modifier.size(58.dp))
+                    ImtihanBrandEmblem(modifier = Modifier.size(62.dp))
                 }
             }
-            Spacer(modifier = Modifier.height(22.dp))
+            Spacer(modifier = Modifier.height(24.dp))
             Text(
                 text = "Imtihan Pro",
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.Bold,
-                color = colors.textPrimary
+                color = Color(0xFFF3F6FC)
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Study · Practice · Excel",
+                text = "Study  ·  Practice  ·  Excel",
                 style = MaterialTheme.typography.titleSmall,
-                color = colors.accentBlue
+                color = Color(0xFF83A8FF)
             )
             Spacer(modifier = Modifier.height(10.dp))
             Text(
-                text = "Class 11 KPK Board Preparation",
+                text = "Smart Exam Preparation for KPK Boards",
                 style = MaterialTheme.typography.bodySmall,
-                color = colors.textSecondary,
+                color = Color(0xFFA0AEC3),
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(32.dp))
-            ImtihanProgressBar(progress = 0.75f, modifier = Modifier.width(160.dp))
+        }
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = ImtihanSpacing.lg),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            ImtihanProgressBar(
+                progress = 0.78f,
+                trackColor = Color(0xFF29374C),
+                fillColor = Color(0xFF83A8FF),
+                modifier = Modifier.width(148.dp)
+            )
+            Text(
+                text = "Powered by KPK Curriculum Engine",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF7B8AA2)
+            )
         }
     }
 }
@@ -212,9 +247,7 @@ fun FirstTimeSetupScreen(
     ) -> Unit
 ) {
     val colors = LocalImtihanColors.current
-    var selectedClass by remember(initialClass) {
-        mutableIntStateOf(11)
-    }
+    var selectedClass by remember(initialClass) { mutableIntStateOf(11) }
     var selectedBoard by remember(initialBoard) { mutableStateOf(initialBoard) }
     var selectedSubBoard by remember(initialSubBoard) { mutableStateOf(initialSubBoard) }
     var selectedGroup by remember(initialStudyGroup, selectedClass) {
@@ -242,7 +275,9 @@ fun FirstTimeSetupScreen(
         ) {
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .defaultMinSize(minHeight = ImtihanDimensions.topBarHeight),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -251,7 +286,13 @@ fun FirstTimeSetupScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (canNavigateBack) {
-                            IconButton(onClick = onBack) {
+                            IconButton(
+                                onClick = onBack,
+                                modifier = Modifier.defaultMinSize(
+                                    minWidth = ImtihanDimensions.minTouchTarget,
+                                    minHeight = ImtihanDimensions.minTouchTarget
+                                )
+                            ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
                                     contentDescription = "Back",
@@ -267,7 +308,7 @@ fun FirstTimeSetupScreen(
                                 color = colors.textPrimary
                             )
                             Text(
-                                text = "Choose your KPK board, group & daily goal. No account needed.",
+                                text = "Configure your class, BISE division & study goal.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.textSecondary
                             )
@@ -286,9 +327,45 @@ fun FirstTimeSetupScreen(
                                     studentName,
                                     false
                                 )
-                            }
+                            },
+                            modifier = Modifier.defaultMinSize(minHeight = ImtihanDimensions.minTouchTarget)
                         ) {
-                            Text("Skip", color = colors.accentBlue)
+                            Text("Skip", fontWeight = FontWeight.SemiBold, color = colors.accentBlue)
+                        }
+                    }
+                }
+            }
+
+            if (!canNavigateBack) {
+                item {
+                    ImtihanHeroCard(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color.White.copy(alpha = 0.14f),
+                                modifier = Modifier.size(50.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    ImtihanBrandEmblem(modifier = Modifier.size(34.dp))
+                                }
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Your Smart KPK Study Partner",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Textbooks, board past papers, timed MCQs & offline notes — zero account required.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White.copy(alpha = 0.86f)
+                                )
+                            }
                         }
                     }
                 }
@@ -296,27 +373,35 @@ fun FirstTimeSetupScreen(
 
             // 2x2 Class Selection (Class 11 Active; 9, 10, 12 Coming Soon)
             item {
-                SilverBlueCard(modifier = Modifier.fillMaxWidth()) {
+                SilverBlueCard(animateContent = true, modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Select Your Class",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = colors.textPrimary
-                        )
-                        ImtihanStatusBadge(text = "HSSC-I Ready", tint = colors.success)
+                        Column {
+                            Text(
+                                text = "Select Your Class",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.textPrimary
+                            )
+                            Text(
+                                text = "Choose your current HSSC / SSC level",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textSecondary
+                            )
+                        }
+                        ImtihanStatusBadge(text = "HSSC-I Active", tint = colors.success)
                     }
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     val classRows = ClassLevelOption.entries.chunked(2)
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         classRows.forEach { rowItems ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 rowItems.forEach { option ->
                                     val available = option.isAvailableInCurrentRelease
@@ -336,8 +421,8 @@ fun FirstTimeSetupScreen(
                                         },
                                         modifier = Modifier
                                             .weight(1f)
-                                            .defaultMinSize(minHeight = 68.dp),
-                                        shape = RoundedCornerShape(ImtihanRadii.button),
+                                            .defaultMinSize(minHeight = 82.dp),
+                                        shape = RoundedCornerShape(ImtihanRadii.card),
                                         color = when {
                                             selected -> colors.accentBlue
                                             available -> colors.cardElevated
@@ -348,32 +433,44 @@ fun FirstTimeSetupScreen(
                                             if (selected) colors.accentBlue else colors.cardBorder
                                         )
                                     ) {
-                                        Column(
-                                            modifier = Modifier.padding(12.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.Center
-                                        ) {
-                                            Text(
-                                                text = "${option.level}",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = when {
-                                                    selected -> MaterialTheme.colorScheme.onPrimary
-                                                    available -> colors.textPrimary
-                                                    else -> colors.textMuted
-                                                }
-                                            )
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Text(
-                                                text = if (available) option.displayLabel else "${option.displayLabel} · Coming Soon",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = when {
-                                                    selected -> MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
-                                                    available -> colors.accentBlue
-                                                    else -> colors.textMuted
-                                                },
-                                                textAlign = TextAlign.Center
-                                            )
+                                        Box(modifier = Modifier.padding(12.dp)) {
+                                            if (selected) {
+                                                Icon(
+                                                    imageVector = Icons.Outlined.CheckCircle,
+                                                    contentDescription = "Selected",
+                                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                                    modifier = Modifier
+                                                        .size(18.dp)
+                                                        .align(Alignment.TopEnd)
+                                                )
+                                            }
+                                            Column(
+                                                modifier = Modifier.align(Alignment.Center),
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.Center
+                                            ) {
+                                                Text(
+                                                    text = "${option.level}",
+                                                    style = MaterialTheme.typography.headlineSmall.tabular(),
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = when {
+                                                        selected -> MaterialTheme.colorScheme.onPrimary
+                                                        available -> colors.textPrimary
+                                                        else -> colors.textMuted
+                                                    }
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = if (available) option.displayLabel else "Coming Soon",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = when {
+                                                        selected -> MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
+                                                        available -> colors.accentBlue
+                                                        else -> colors.textMuted
+                                                    },
+                                                    textAlign = TextAlign.Center
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -381,12 +478,16 @@ fun FirstTimeSetupScreen(
                         }
                     }
 
-                    if (comingSoonNotice != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                    AnimatedVisibility(
+                        visible = comingSoonNotice != null,
+                        enter = fadeIn(ImtihanMotion.fastTween()),
+                        exit = fadeOut(ImtihanMotion.fastTween())
+                    ) {
                         Text(
-                            text = comingSoonNotice!!,
+                            text = comingSoonNotice ?: "",
                             style = MaterialTheme.typography.bodySmall,
-                            color = colors.warningGold
+                            color = colors.warningGold,
+                            modifier = Modifier.padding(top = 10.dp)
                         )
                     }
                 }
@@ -396,17 +497,18 @@ fun FirstTimeSetupScreen(
             item {
                 SilverBlueCard(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = "Select Your Board (KPK BISE)",
+                        text = "Select Your Board",
                         style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
                         color = colors.textPrimary
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "All 8 Khyber Pakhtunkhwa BISE divisions supported",
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.textSecondary
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     val boardRows = Stage3To8Engines.KPK_SUB_BOARDS.chunked(2)
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -433,7 +535,7 @@ fun FirstTimeSetupScreen(
                                         )
                                     ) {
                                         Row(
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
@@ -446,10 +548,20 @@ fun FirstTimeSetupScreen(
                                             Text(
                                                 text = sub.name.replace("BISE ", ""),
                                                 style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
                                                 color = if (active) MaterialTheme.colorScheme.onPrimary else colors.textPrimary,
                                                 maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f)
                                             )
+                                            if (active) {
+                                                Icon(
+                                                    imageVector = Icons.Outlined.CheckCircle,
+                                                    contentDescription = "Selected",
+                                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -465,6 +577,7 @@ fun FirstTimeSetupScreen(
                     Text(
                         text = "Select Study Group",
                         style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
                         color = colors.textPrimary
                     )
                     Spacer(modifier = Modifier.height(10.dp))
@@ -476,7 +589,9 @@ fun FirstTimeSetupScreen(
                                 shape = RoundedCornerShape(ImtihanRadii.button),
                                 color = if (selected) colors.accentBlue.copy(alpha = 0.14f) else colors.cardElevated,
                                 border = BorderStroke(1.dp, if (selected) colors.accentBlue else colors.cardBorder),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .defaultMinSize(minHeight = ImtihanDimensions.minTouchTarget)
                             ) {
                                 Row(
                                     modifier = Modifier.padding(12.dp),
@@ -513,8 +628,9 @@ fun FirstTimeSetupScreen(
             item {
                 SilverBlueCard(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = "Medium, Study Goal & Profile",
+                        text = "Medium, Daily Goal & Name",
                         style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
                         color = colors.textPrimary
                     )
                     Spacer(modifier = Modifier.height(10.dp))
@@ -541,7 +657,7 @@ fun FirstTimeSetupScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
                     Text(
                         text = "Daily Study Target",
                         style = MaterialTheme.typography.labelMedium,
@@ -555,7 +671,7 @@ fun FirstTimeSetupScreen(
                                 onClick = { selectedDailyGoal = mins },
                                 modifier = Modifier
                                     .weight(1f)
-                                    .defaultMinSize(minHeight = 42.dp),
+                                    .defaultMinSize(minHeight = 44.dp),
                                 shape = RoundedCornerShape(ImtihanRadii.chip),
                                 color = if (active) colors.accentBlue else colors.cardElevated,
                                 border = BorderStroke(1.dp, if (active) colors.accentBlue else colors.cardBorder)
@@ -563,7 +679,7 @@ fun FirstTimeSetupScreen(
                                 Box(contentAlignment = Alignment.Center) {
                                     Text(
                                         text = "${mins}m",
-                                        style = MaterialTheme.typography.labelMedium,
+                                        style = MaterialTheme.typography.labelMedium.tabular(),
                                         color = if (active) MaterialTheme.colorScheme.onPrimary else colors.textPrimary
                                     )
                                 }
@@ -571,7 +687,7 @@ fun FirstTimeSetupScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
                     OutlinedTextField(
                         value = studentName,
                         onValueChange = { studentName = it },
@@ -583,12 +699,20 @@ fun FirstTimeSetupScreen(
                     )
 
                     if (!canNavigateBack) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .defaultMinSize(minHeight = ImtihanDimensions.minTouchTarget)
+                                .clickable(role = Role.Checkbox) { startWithDiagnostic = !startWithDiagnostic }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Checkbox(
                                 checked = startWithDiagnostic,
-                                onCheckedChange = { startWithDiagnostic = it }
+                                onCheckedChange = null
                             )
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Start with 5-minute diagnostic baseline quiz",
                                 style = MaterialTheme.typography.bodySmall,
@@ -637,7 +761,7 @@ fun FirstTimeSetupScreen(
 }
 
 /**
- * Screen 3: Home Dashboard (Apple-Inspired Minimalist Hierarchy Matching Reference Mockup)
+ * Screen 3: Home Dashboard (Cohesive Hierarchy Matching Silver Blue Visual Reference)
  */
 @Composable
 fun HomeDashboardScreen(
@@ -670,6 +794,7 @@ fun HomeDashboardScreen(
     onStartRapidFire: () -> Unit = {},
     onOpenFocusTimer: () -> Unit = {},
     onShareStreak: () -> Unit = {},
+    onRetrySubjects: () -> Unit = {},
     onBannerDisplayed: () -> Unit = {}
 ) {
     val colors = LocalImtihanColors.current
@@ -723,7 +848,7 @@ fun HomeDashboardScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        ImtihanBrandEmblem(modifier = Modifier.size(38.dp))
+                        ImtihanBrandEmblem(modifier = Modifier.size(40.dp))
                         Column {
                             Text(
                                 text = "Assalam O Alaikum,",
@@ -743,28 +868,39 @@ fun HomeDashboardScreen(
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Surface(
                             onClick = {
                                 feedback?.tap()
                                 onToggleMedium()
                             },
+                            modifier = Modifier.defaultMinSize(minHeight = 40.dp),
                             shape = RoundedCornerShape(ImtihanRadii.chip),
                             color = if (isUrdu) colors.accentBlue else colors.cardSurface,
                             border = BorderStroke(1.dp, if (isUrdu) colors.accentBlue else colors.cardBorder)
                         ) {
-                            Text(
-                                text = if (isUrdu) "اردو" else "EN",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = if (isUrdu) MaterialTheme.colorScheme.onPrimary else colors.textPrimary,
+                            Box(
+                                contentAlignment = Alignment.Center,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
-                            )
+                            ) {
+                                Text(
+                                    text = if (isUrdu) "اردو" else "EN",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = if (isUrdu) MaterialTheme.colorScheme.onPrimary else colors.textPrimary
+                                )
+                            }
                         }
-                        IconButton(onClick = {
-                            onToggleSound()
-                            feedback?.tap()
-                        }) {
+                        IconButton(
+                            onClick = {
+                                onToggleSound()
+                                feedback?.tap()
+                            },
+                            modifier = Modifier.defaultMinSize(
+                                minWidth = ImtihanDimensions.minTouchTarget,
+                                minHeight = ImtihanDimensions.minTouchTarget
+                            )
+                        ) {
                             Icon(
                                 imageVector = if (shellState.soundEffectsEnabled) Icons.Outlined.VolumeUp else Icons.Outlined.VolumeOff,
                                 contentDescription = if (shellState.soundEffectsEnabled) "Mute SFX" else "Enable SFX",
@@ -776,7 +912,7 @@ fun HomeDashboardScreen(
                             shape = CircleShape,
                             color = colors.accentBlue.copy(alpha = 0.14f),
                             border = BorderStroke(1.dp, colors.accentBlue.copy(alpha = 0.4f)),
-                            modifier = Modifier.size(38.dp)
+                            modifier = Modifier.size(40.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Text(
@@ -803,7 +939,7 @@ fun HomeDashboardScreen(
                         modifier = Modifier.weight(1f)
                     )
                     SelectorHeaderChip(
-                        text = subBoardDisplay,
+                        text = "BISE $subBoardDisplay",
                         onClick = onOpenClassBoardSetup,
                         modifier = Modifier.weight(1.4f)
                     )
@@ -885,10 +1021,9 @@ fun HomeDashboardScreen(
                 }
             }
 
-            // Continue Learning Hero Card
+            // Continue Learning Focal Hero Card
             item {
-                SilverBlueCard(
-                    elevated = true,
+                ImtihanHeroCard(
                     onClick = {
                         feedback?.tap()
                         onContinueLearning()
@@ -901,13 +1036,17 @@ fun HomeDashboardScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            ZeroPillMetaLine("CONTINUE LEARNING")
+                            Text(
+                                text = "Continue Learning",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color(0xFFBBD0FF)
+                            )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = activeChapterTitle,
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = colors.textPrimary,
+                                color = Color.White,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -918,31 +1057,35 @@ fun HomeDashboardScreen(
                                 } else {
                                     "Class ${shellState.selectedClassLevel} KPK · Ready to study"
                                 },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.textSecondary
+                                style = MaterialTheme.typography.bodySmall.tabular(),
+                                color = Color.White.copy(alpha = 0.84f)
                             )
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Surface(
                             shape = CircleShape,
-                            color = colors.accentBlue,
+                            color = Color.White,
                             modifier = Modifier.size(46.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = Icons.Outlined.PlayArrow,
                                     contentDescription = "Continue chapter",
-                                    tint = MaterialTheme.colorScheme.onPrimary
+                                    tint = Color(0xFF2848A3)
                                 )
                             }
                         }
                     }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    ImtihanProgressBar(progress = metrics.continueChapterPercent / 100f)
+                    Spacer(modifier = Modifier.height(14.dp))
+                    ImtihanProgressBar(
+                        progress = metrics.continueChapterPercent / 100f,
+                        trackColor = Color.White.copy(alpha = 0.22f),
+                        fillColor = Color.White
+                    )
                 }
             }
 
-            // Quick Actions (6 Core Actions per v2.0 Spec)
+            // Quick Actions (6 Core Actions)
             item {
                 ImtihanSectionHeader(title = "Quick Actions")
                 Spacer(modifier = Modifier.height(8.dp))
@@ -1008,12 +1151,20 @@ fun HomeDashboardScreen(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Icon(Icons.Outlined.Bolt, contentDescription = null, tint = colors.warningGold)
+                            Surface(
+                                shape = RoundedCornerShape(ImtihanRadii.chip),
+                                color = colors.warningGold.copy(alpha = 0.14f),
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Outlined.Bolt, contentDescription = null, tint = colors.warningGold, modifier = Modifier.size(20.dp))
+                                }
+                            }
                             Column {
-                                Text("Daily Challenge", style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
-                                Text("5-min rapid MCQ", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                                Text("Daily Challenge", style = MaterialTheme.typography.titleSmall, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("5-min rapid MCQ", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary, maxLines = 1)
                             }
                         }
                     }
@@ -1026,12 +1177,20 @@ fun HomeDashboardScreen(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Icon(Icons.Outlined.SelfImprovement, contentDescription = null, tint = colors.accentBlue)
+                            Surface(
+                                shape = RoundedCornerShape(ImtihanRadii.chip),
+                                color = colors.accentBlue.copy(alpha = 0.14f),
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Outlined.SelfImprovement, contentDescription = null, tint = colors.accentBlue, modifier = Modifier.size(20.dp))
+                                }
+                            }
                             Column {
-                                Text("Focus Studio", style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
-                                Text("Pomodoro timer", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                                Text("Focus Studio", style = MaterialTheme.typography.titleSmall, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("Pomodoro timer", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary, maxLines = 1)
                             }
                         }
                     }
@@ -1049,7 +1208,7 @@ fun HomeDashboardScreen(
 
                 when (subjectsState) {
                     is UiResourceState.Loading -> ImtihanSkeletonList(count = 2)
-                    is UiResourceState.Error -> ImtihanErrorView(subjectsState.message, onRetry = {})
+                    is UiResourceState.Error -> ImtihanErrorView(subjectsState.message, onRetry = onRetrySubjects)
                     is UiResourceState.Empty -> ImtihanEmptyView(subjectsState.title, subjectsState.description)
                     is UiResourceState.Success -> {
                         val filtered = subjectsState.data.filter {
@@ -1062,7 +1221,7 @@ fun HomeDashboardScreen(
                                         feedback?.tap()
                                         onOpenSubject(subject)
                                     },
-                                    modifier = Modifier.width(156.dp)
+                                    modifier = Modifier.width(160.dp)
                                 ) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -1071,11 +1230,11 @@ fun HomeDashboardScreen(
                                     ) {
                                         SubjectVectorIcon(
                                             iconKey = subject.iconKey,
-                                            modifier = Modifier.size(30.dp)
+                                            modifier = Modifier.size(32.dp)
                                         )
                                         Text(
                                             text = "${subject.progressPercent}%",
-                                            style = MaterialTheme.typography.labelSmall,
+                                            style = MaterialTheme.typography.labelMedium.tabular(),
                                             color = colors.accentBlue
                                         )
                                     }
@@ -1083,13 +1242,14 @@ fun HomeDashboardScreen(
                                     Text(
                                         text = subject.name,
                                         style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
                                         color = colors.textPrimary,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
                                         text = "${subject.completedChapters}/${subject.totalChapters} Chapters",
-                                        style = MaterialTheme.typography.bodySmall,
+                                        style = MaterialTheme.typography.bodySmall.tabular(),
                                         color = colors.textSecondary
                                     )
                                     Spacer(modifier = Modifier.height(10.dp))
@@ -1109,41 +1269,46 @@ fun HomeDashboardScreen(
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         AnimatedProgressRing(
                             progress = shellState.profile.overallProgressPercent / 100f,
-                            size = 76.dp,
+                            size = 78.dp,
                             strokeWidth = 7.dp,
                             centerLabel = "${shellState.profile.overallProgressPercent}%",
-                            centerCaption = "SYLLABUS"
+                            centerCaption = "Syllabus"
                         )
                         Column(modifier = Modifier.weight(1f)) {
-                            ZeroPillMetaLine(
-                                text = daysToExam?.let { "$it DAYS TO BISE EXAM" } ?: "EXAM COUNTDOWN & GOALS"
+                            Text(
+                                text = daysToExam?.let { "$it days until BISE Exam" } ?: "Exam Readiness & Goals",
+                                style = MaterialTheme.typography.labelMedium.tabular(),
+                                color = colors.accentBlue
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "${metrics.currentStreakDays}d Streak · ${metrics.xpTotal} XP",
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleMedium.tabular(),
+                                fontWeight = FontWeight.Bold,
                                 color = colors.textPrimary
                             )
                             Text(
                                 text = "Daily Goal: ${shellState.profile.dailyGoalPercent}% of ${shellState.dailyTargetMinutes}m",
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.bodySmall.tabular(),
                                 color = colors.textSecondary
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             onClick = {
                                 feedback?.tap()
                                 onShareStreak()
                             },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .defaultMinSize(minHeight = 44.dp),
                             shape = RoundedCornerShape(ImtihanRadii.button)
                         ) {
                             Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(16.dp), tint = colors.accentBlue)
@@ -1152,7 +1317,9 @@ fun HomeDashboardScreen(
                         }
                         OutlinedButton(
                             onClick = onOpenStudyPlanner,
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .defaultMinSize(minHeight = 44.dp),
                             shape = RoundedCornerShape(ImtihanRadii.button)
                         ) {
                             Icon(Icons.Outlined.CalendarToday, contentDescription = null, modifier = Modifier.size(16.dp), tint = colors.accentBlue)
@@ -1171,7 +1338,7 @@ fun HomeDashboardScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         QuickAccessCard(
                             title = "AI Study Tutor",
-                            subtitle = "Grounded explanations",
+                            subtitle = "Curriculum explanations",
                             icon = Icons.Outlined.AutoAwesome,
                             tint = colors.warningGold,
                             onClick = onOpenAiTutor,
@@ -1189,7 +1356,7 @@ fun HomeDashboardScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         QuickAccessCard(
                             title = "Study Planner",
-                            subtitle = "Tasks & timetable",
+                            subtitle = "Tasks & exam calendar",
                             icon = Icons.Outlined.CalendarToday,
                             tint = colors.accentBlue,
                             onClick = onOpenStudyPlanner,
@@ -1215,9 +1382,10 @@ fun HomeDashboardScreen(
                             style = MaterialTheme.typography.labelSmall,
                             color = colors.textMuted
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = shellState.adPolicy.providerNote.ifBlank {
-                                "Non-intrusive academic partner slot (never shown during quizzes or reading)."
+                                "Non-intrusive academic partner slot (hidden during quizzes and PDF reading)."
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textSecondary
@@ -1238,13 +1406,13 @@ private fun SelectorHeaderChip(
     val colors = LocalImtihanColors.current
     Surface(
         onClick = onClick,
-        modifier = modifier.defaultMinSize(minHeight = 40.dp),
+        modifier = modifier.defaultMinSize(minHeight = 42.dp),
         shape = RoundedCornerShape(ImtihanRadii.button),
         color = colors.cardSurface,
         border = BorderStroke(1.dp, colors.cardBorder)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1277,7 +1445,7 @@ private fun QuickActionCompactTile(
     val colors = LocalImtihanColors.current
     Surface(
         onClick = onClick,
-        modifier = modifier.defaultMinSize(minHeight = 76.dp),
+        modifier = modifier.defaultMinSize(minHeight = 80.dp),
         shape = RoundedCornerShape(ImtihanRadii.card),
         color = colors.cardSurface,
         border = BorderStroke(1.dp, colors.cardBorder)
@@ -1290,14 +1458,14 @@ private fun QuickActionCompactTile(
             Surface(
                 shape = RoundedCornerShape(ImtihanRadii.chip),
                 color = tint.copy(alpha = 0.14f),
-                modifier = Modifier.size(34.dp)
+                modifier = Modifier.size(36.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
                         tint = tint,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(19.dp)
                     )
                 }
             }
@@ -1325,10 +1493,30 @@ private fun QuickAccessCard(
 ) {
     val colors = LocalImtihanColors.current
     SilverBlueCard(onClick = onClick, modifier = modifier) {
-        Icon(imageVector = icon, contentDescription = null, tint = tint)
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(title, style = MaterialTheme.typography.titleSmall, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Surface(
+            shape = RoundedCornerShape(ImtihanRadii.chip),
+            color = tint.copy(alpha = 0.14f),
+            modifier = Modifier.size(34.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(19.dp))
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            color = colors.textPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = subtitle,
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.textSecondary,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -1342,48 +1530,85 @@ private fun SearchResultsPanel(
 ) {
     val colors = LocalImtihanColors.current
     val totalCount = results.subjects.size + results.chapters.size + results.topics.size + results.mcqs.size + results.pdfs.size
-    SilverBlueCard(elevated = true, modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = if (totalCount == 0) "No curriculum matches for \"${results.query}\"" else "Search Results ($totalCount)",
-            style = MaterialTheme.typography.titleSmall,
-            color = colors.accentBlue
-        )
-        if (results.subjects.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(6.dp))
-            results.subjects.take(3).forEach { sub ->
-                TextButton(onClick = { onOpenSubject(sub) }) {
-                    Text("Subject: ${sub.name} (Class ${sub.classLevel})", color = colors.textPrimary)
-                }
-            }
-        }
-        if (results.chapters.isNotEmpty()) {
-            results.chapters.take(4).forEach { ch ->
-                TextButton(onClick = { onOpenChapter(ch) }) {
-                    Text("Chapter ${ch.chapterNumber}: ${ch.title}", color = colors.textPrimary)
-                }
-            }
-        }
-        if (results.topics.isNotEmpty()) {
-            results.topics.take(3).forEach { (chTitle, top) ->
-                TextButton(onClick = onOpenMcqPractice) {
-                    Text("Topic: ${top.title} ($chTitle)", color = colors.textSecondary)
-                }
-            }
-        }
-        if (results.mcqs.isNotEmpty()) {
+    SilverBlueCard(elevated = true, contentPadding = PaddingValues(0.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Text(
-                text = "${results.mcqs.size} matching practice MCQ(s) found",
-                style = MaterialTheme.typography.labelMedium,
-                color = colors.success,
-                modifier = Modifier.padding(top = 4.dp)
+                text = if (totalCount == 0) "No curriculum matches for \"${results.query}\"" else "$totalCount Curriculum Matches",
+                style = MaterialTheme.typography.titleSmall,
+                color = colors.accentBlue
             )
         }
-        if (results.pdfs.isNotEmpty()) {
-            results.pdfs.take(2).forEach { pdf ->
-                TextButton(onClick = { onOpenPdf(pdf) }) {
-                    Text("PDF: ${pdf.title}", color = colors.accentBlue)
-                }
-            }
+        if (totalCount > 0) {
+            HorizontalDivider(color = colors.cardBorder.copy(alpha = 0.6f))
         }
+        results.subjects.take(3).forEach { sub ->
+            SearchMatchRow(
+                icon = Icons.Outlined.AutoStories,
+                title = sub.name,
+                subtitle = "Subject · Class ${sub.classLevel}",
+                onClick = { onOpenSubject(sub) }
+            )
+            HorizontalDivider(color = colors.cardBorder.copy(alpha = 0.35f))
+        }
+        results.chapters.take(4).forEach { ch ->
+            SearchMatchRow(
+                icon = Icons.Outlined.MenuBook,
+                title = "Chapter ${ch.chapterNumber}: ${ch.title}",
+                subtitle = "Chapter Workspace & Notes",
+                onClick = { onOpenChapter(ch) }
+            )
+            HorizontalDivider(color = colors.cardBorder.copy(alpha = 0.35f))
+        }
+        results.topics.take(3).forEach { (chTitle, top) ->
+            SearchMatchRow(
+                icon = Icons.Outlined.Quiz,
+                title = top.title,
+                subtitle = "Topic Drill · $chTitle",
+                onClick = onOpenMcqPractice
+            )
+            HorizontalDivider(color = colors.cardBorder.copy(alpha = 0.35f))
+        }
+        results.pdfs.take(2).forEach { pdf ->
+            SearchMatchRow(
+                icon = Icons.Outlined.PictureAsPdf,
+                title = pdf.title,
+                subtitle = "PDF · ${pdf.pageCount} pages",
+                onClick = { onOpenPdf(pdf) }
+            )
+        }
+        if (results.mcqs.isNotEmpty()) {
+            SearchMatchRow(
+                icon = Icons.Outlined.CheckCircle,
+                title = "${results.mcqs.size} matching practice MCQ(s)",
+                subtitle = "Tap to launch MCQ practice",
+                onClick = onOpenMcqPractice
+            )
+        }
+    }
+}
+
+@Composable
+private fun SearchMatchRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    val colors = LocalImtihanColors.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .defaultMinSize(minHeight = ImtihanDimensions.minTouchTarget)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Icon(icon, contentDescription = null, tint = colors.accentBlue, modifier = Modifier.size(19.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(18.dp))
     }
 }

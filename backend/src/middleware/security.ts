@@ -19,9 +19,9 @@ export function buildCorsHeaders(request: Request, env: Env): Record<string, str
 
   return {
     'Access-Control-Allow-Origin': allowOrigin,
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Agent-Secret, X-Guest-Device-Id',
-    'Access-Control-Expose-Headers': 'Content-Disposition, Content-Length, ETag',
+    'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Agent-Secret, X-Guest-Device-Id, Range, If-Range, If-None-Match',
+    'Access-Control-Expose-Headers': 'Content-Disposition, Content-Length, Content-Range, Accept-Ranges, ETag, Retry-After, X-Imtihan-Cache',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };

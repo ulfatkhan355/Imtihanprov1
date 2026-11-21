@@ -114,6 +114,31 @@ data class DownloadedPdfEntity(
     val downloadedAtEpochMs: Long
 )
 
+@Entity(tableName = "download_tasks")
+data class DownloadTaskEntity(
+    @PrimaryKey val pdfId: String,
+    val paperId: String,
+    val title: String,
+    val categoryLabel: String,
+    val remoteUrl: String,
+    val state: String,
+    val pausedReason: String = "NONE",
+    val bytesDownloaded: Long = 0L,
+    val totalBytes: Long = 0L,
+    val speedBytesPerSec: Long = 0L,
+    val etag: String? = null,
+    val expectedSha256: String? = null,
+    val retryCount: Int = 0,
+    val nextRetryAtMs: Long = 0L,
+    val errorCode: String? = null,
+    val errorMessage: String? = null,
+    val localPath: String? = null,
+    val tmpPath: String = "",
+    val allowMobileData: Boolean = false,
+    val createdAtEpochMs: Long = 0L,
+    val updatedAtEpochMs: Long = 0L
+)
+
 @Entity(tableName = "pdf_reading_state")
 data class PdfReadingStateEntity(
     @PrimaryKey val pdfId: String,
@@ -326,6 +351,80 @@ interface OfflineContentDao {
 }
 
 @Dao
+interface DownloadTaskDao {
+    @Query("SELECT * FROM download_tasks ORDER BY updatedAtEpochMs DESC")
+    fun observeAll(): Flow<List<DownloadTaskEntity>>
+
+    @Query("SELECT * FROM download_tasks WHERE pdfId = :pdfId LIMIT 1")
+    fun observeById(pdfId: String): Flow<DownloadTaskEntity?>
+
+    @Query("SELECT * FROM download_tasks WHERE pdfId = :pdfId LIMIT 1")
+    suspend fun getByIdOnce(pdfId: String): DownloadTaskEntity?
+
+    @Query("SELECT * FROM download_tasks WHERE state IN ('RUNNING', 'QUEUED', 'VERIFYING') ORDER BY CASE state WHEN 'RUNNING' THEN 0 WHEN 'VERIFYING' THEN 1 ELSE 2 END, createdAtEpochMs ASC LIMIT 1")
+    suspend fun getNextRunnableOnce(): DownloadTaskEntity?
+
+    @Query("SELECT * FROM download_tasks WHERE state = 'QUEUED' ORDER BY createdAtEpochMs ASC")
+    suspend fun getQueuedOnce(): List<DownloadTaskEntity>
+
+    @Query("SELECT * FROM download_tasks WHERE state = 'PAUSED' AND pausedReason IN ('WAITING_WIFI', 'WAITING_NETWORK', 'RETRY_BACKOFF') ORDER BY updatedAtEpochMs ASC")
+    suspend fun getAutoResumablePausedOnce(): List<DownloadTaskEntity>
+
+    @Query("SELECT * FROM download_tasks WHERE state IN ('RUNNING', 'VERIFYING')")
+    suspend fun getOrphanedRunningOnce(): List<DownloadTaskEntity>
+
+    @Query("SELECT * FROM download_tasks WHERE state = 'FAILED'")
+    suspend fun getFailedOnce(): List<DownloadTaskEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entity: DownloadTaskEntity)
+
+    @Query(
+        "UPDATE download_tasks SET bytesDownloaded = :bytesDownloaded, totalBytes = :totalBytes, speedBytesPerSec = :speedBps, etag = COALESCE(:etag, etag), updatedAtEpochMs = :updatedAt WHERE pdfId = :pdfId"
+    )
+    suspend fun updateProgress(
+        pdfId: String,
+        bytesDownloaded: Long,
+        totalBytes: Long,
+        speedBps: Long,
+        etag: String?,
+        updatedAt: Long
+    )
+
+    @Query(
+        "UPDATE download_tasks SET totalBytes = :totalBytes, etag = COALESCE(:etag, etag), expectedSha256 = COALESCE(:expectedSha256, expectedSha256), updatedAtEpochMs = :updatedAt WHERE pdfId = :pdfId"
+    )
+    suspend fun updateMetadata(
+        pdfId: String,
+        totalBytes: Long,
+        etag: String?,
+        expectedSha256: String?,
+        updatedAt: Long
+    )
+
+    @Query(
+        "UPDATE download_tasks SET state = :state, pausedReason = :pausedReason, errorCode = :errorCode, errorMessage = :errorMessage, speedBytesPerSec = 0, updatedAtEpochMs = :updatedAt WHERE pdfId = :pdfId"
+    )
+    suspend fun updateState(
+        pdfId: String,
+        state: String,
+        pausedReason: String,
+        errorCode: String?,
+        errorMessage: String?,
+        updatedAt: Long
+    )
+
+    @Query("UPDATE download_tasks SET allowMobileData = :allowMobileData, state = 'QUEUED', pausedReason = 'NONE', errorCode = NULL, errorMessage = NULL, updatedAtEpochMs = :updatedAt WHERE pdfId = :pdfId")
+    suspend fun allowMobileDataAndQueue(pdfId: String, allowMobileData: Boolean, updatedAt: Long)
+
+    @Query("DELETE FROM download_tasks WHERE pdfId = :pdfId")
+    suspend fun deleteById(pdfId: String)
+
+    @Query("DELETE FROM download_tasks")
+    suspend fun deleteAll()
+}
+
+@Dao
 interface GuestProgressDao {
     @Query("SELECT * FROM guest_progress")
     fun observeAllProgress(): Flow<List<GuestProgressEntity>>
@@ -509,9 +608,10 @@ interface FeedbackDao {
         FlashcardReviewEntity::class,
         StudyPlanTaskEntity::class,
         StudyActivityDayEntity::class,
-        PendingFeedbackEntity::class
+        PendingFeedbackEntity::class,
+        DownloadTaskEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class ImtihanDatabase : RoomDatabase() {
@@ -527,6 +627,7 @@ abstract class ImtihanDatabase : RoomDatabase() {
     abstract fun studyPlannerDao(): StudyPlannerDao
     abstract fun studyActivityDao(): StudyActivityDao
     abstract fun feedbackDao(): FeedbackDao
+    abstract fun downloadTaskDao(): DownloadTaskDao
 }
 
 object ImtihanDatabaseProvider {
@@ -675,6 +776,39 @@ object ImtihanDatabaseProvider {
         }
     }
 
+    val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS download_tasks (
+                    pdfId TEXT NOT NULL PRIMARY KEY,
+                    paperId TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    categoryLabel TEXT NOT NULL,
+                    remoteUrl TEXT NOT NULL,
+                    state TEXT NOT NULL,
+                    pausedReason TEXT NOT NULL,
+                    bytesDownloaded INTEGER NOT NULL,
+                    totalBytes INTEGER NOT NULL,
+                    speedBytesPerSec INTEGER NOT NULL,
+                    etag TEXT,
+                    expectedSha256 TEXT,
+                    retryCount INTEGER NOT NULL,
+                    nextRetryAtMs INTEGER NOT NULL,
+                    errorCode TEXT,
+                    errorMessage TEXT,
+                    localPath TEXT,
+                    tmpPath TEXT NOT NULL,
+                    allowMobileData INTEGER NOT NULL,
+                    createdAtEpochMs INTEGER NOT NULL,
+                    updatedAtEpochMs INTEGER NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_download_tasks_state ON download_tasks(state, updatedAtEpochMs)")
+        }
+    }
+
     fun getInstance(context: Context): ImtihanDatabase {
         return INSTANCE ?: synchronized(this) {
             INSTANCE ?: Room.databaseBuilder(
@@ -682,7 +816,7 @@ object ImtihanDatabaseProvider {
                 ImtihanDatabase::class.java,
                 "imtihan_pro_local.db"
             )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .fallbackToDestructiveMigration()
                 .build()
                 .also { INSTANCE = it }

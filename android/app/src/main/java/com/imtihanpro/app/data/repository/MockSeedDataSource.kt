@@ -2043,13 +2043,13 @@ object MockSeedDataSource {
     )
 
     val pdfLibrary: List<ApiPdfMetadataDto> = listOf(
-        ApiPdfMetadataDto("pdf_tb_phy11", "KPK Physics Class 11 Textbook (HSSC-I)", "textbook", 11, "KPK", "sub_kpk11_phy", "kpk/class-11/physics/physics-11-kpk-textbook.pdf", 4_194_304L, 240, "", true, "1.0"),
-        ApiPdfMetadataDto("pdf_pp_phy11_2025", "BISE Peshawar Class 11 Physics Annual 2025 (Solved)", "past_paper", 11, "KPK", "sub_kpk11_phy", "kpk/class-11/physics/2025-annual-solved.pdf", 1_572_864L, 8, "", true, "1.0"),
-        ApiPdfMetadataDto("pdf_pp_math11_2025", "BISE KPK Class 11 Mathematics Annual 2025", "past_paper", 11, "KPK", "sub_kpk11_math", "kpk/class-11/mathematics/2025-annual.pdf", 1_310_720L, 6, "", true, "1.0"),
-        ApiPdfMetadataDto("pdf_tb_phy9", "KPK Physics Class 9 Textbook (English)", "textbook", 9, "KPK", "sub_kpk9_phy", "textbooks/kpk/class9/physics-9-en.pdf", 8_400_000L, 196, "sha_phy9", true, "v2025"),
-        ApiPdfMetadataDto("pdf_tb_chem9", "KPK Chemistry Class 9 Textbook (English)", "textbook", 9, "KPK", "sub_kpk9_chem", "textbooks/kpk/class9/chemistry-9-en.pdf", 7_100_000L, 168, "sha_chem9", true, "v2025"),
-        ApiPdfMetadataDto("pdf_tb_math9", "KPK Mathematics Class 9 Textbook", "textbook", 9, "KPK", "sub_kpk9_math", "textbooks/kpk/class9/math-9-en.pdf", 9_200_000L, 280, "sha_math9", true, "v2025"),
-        ApiPdfMetadataDto("pdf_syl_kpk9", "KPK BISE Class 9 Official Pairing Scheme & Syllabus", "syllabus", 9, "KPK", "sub_kpk9_phy", "syllabi/kpk/class9-scheme.pdf", 1_100_000L, 16, "sha_syl9", true, "v2025"),
-        ApiPdfMetadataDto("pdf_notes_phy9_ch1", "Physics Class 9 Ch 1 Formula & Revision Pack", "notes_pack", 9, "KPK", "sub_kpk9_phy", "notes/kpk/class9/phy-ch1-pack.pdf", 1_400_000L, 14, "sha_np9", true, "v1.2")
+        ApiPdfMetadataDto("pdf_tb_phy11", "KPK Physics Class 11 Textbook (HSSC-I)", "textbook", 11, "KPK", "sub_kpk11_phy", "kpk/class-11/physics/physics-11-kpk-textbook.pdf", 4_194_304L, 240, "c8b5a5446c7b69bd8152000382065a8ed93c78f50cbefe4ec2196594be8500e9", true, "1.0"),
+        ApiPdfMetadataDto("pdf_pp_phy11_2025", "BISE Peshawar Class 11 Physics Annual 2025 (Solved)", "past_paper", 11, "KPK", "sub_kpk11_phy", "kpk/class-11/physics/2025-annual-solved.pdf", 1_572_864L, 8, "e8325e07e8b35cabe5aaaf24b0a6727d90b572a2039682864af9da9b788bab3a", true, "1.0"),
+        ApiPdfMetadataDto("pdf_pp_math11_2025", "BISE KPK Class 11 Mathematics Annual 2025", "past_paper", 11, "KPK", "sub_kpk11_math", "kpk/class-11/mathematics/2025-annual.pdf", 1_310_720L, 6, "567e437d2278a0abeb89685f88e6a9aa19f7cebeea48ed33dee4bcd33528d621", true, "1.0"),
+        ApiPdfMetadataDto("pdf_tb_phy9", "KPK Physics Class 9 Textbook (English)", "textbook", 9, "KPK", "sub_kpk9_phy", "textbooks/kpk/class9/physics-9-en.pdf", 8_400_000L, 196, "bf1bf2538ced10bda2cced87402b7d59d4b9a51f8dc433edc443d7f753409ed9", true, "v2025"),
+        ApiPdfMetadataDto("pdf_tb_chem9", "KPK Chemistry Class 9 Textbook (English)", "textbook", 9, "KPK", "sub_kpk9_chem", "textbooks/kpk/class9/chemistry-9-en.pdf", 7_100_000L, 168, "fc7fc48a7f7f6570f9b246278d95081fa05d659373f116d0ab31f10434d35185", true, "v2025"),
+        ApiPdfMetadataDto("pdf_tb_math9", "KPK Mathematics Class 9 Textbook", "textbook", 9, "KPK", "sub_kpk9_math", "textbooks/kpk/class9/math-9-en.pdf", 9_200_000L, 280, "15169fabf4d3a01ddba97ce2ce940f476a8dbc38e7b0afea284865dc470be0f6", true, "v2025"),
+        ApiPdfMetadataDto("pdf_syl_kpk9", "KPK BISE Class 9 Official Pairing Scheme & Syllabus", "syllabus", 9, "KPK", "sub_kpk9_phy", "syllabi/kpk/class9-scheme.pdf", 1_100_000L, 16, "946a4188f8d404756f48daebd82400ed19e0521118e248aebccd6d48ae0f88dd", true, "v2025"),
+        ApiPdfMetadataDto("pdf_notes_phy9_ch1", "Physics Class 9 Ch 1 Formula & Revision Pack", "notes_pack", 9, "KPK", "sub_kpk9_phy", "notes/kpk/class9/phy-ch1-pack.pdf", 1_400_000L, 14, "d701ac8ab76774dc76971083420a5faf41dc4c886112dd48f59a6275cd623dec", true, "v1.2")
     )
 }

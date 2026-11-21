@@ -1,9 +1,7 @@
 package com.imtihanpro.app.ui.components
 
-import androidx.compose.animation.core.Spring
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -14,18 +12,22 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -47,17 +49,26 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.imtihanpro.app.R
+import com.imtihanpro.app.ui.theme.ImtihanDimensions
+import com.imtihanpro.app.ui.theme.ImtihanMotion
+import com.imtihanpro.app.ui.theme.ImtihanRadii
+import com.imtihanpro.app.ui.theme.ImtihanSpacing
 import com.imtihanpro.app.ui.theme.LocalImtihanColors
+import com.imtihanpro.app.ui.theme.tabular
 
 @Composable
 fun SilverBlueCard(
     modifier: Modifier = Modifier,
     elevated: Boolean = false,
+    animateContent: Boolean = false,
+    contentPadding: PaddingValues = PaddingValues(16.dp),
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -65,17 +76,20 @@ fun SilverBlueCard(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (onClick != null && isPressed) 0.975f else 1f,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        targetValue = if (onClick != null && isPressed) 0.98f else 1f,
+        animationSpec = ImtihanMotion.snappySpring(),
         label = "card_press_scale"
     )
 
     val container = if (elevated) colors.cardElevated else colors.cardSurface
-    val shape = RoundedCornerShape(com.imtihanpro.app.ui.theme.ImtihanRadii.card)
+    val shape = RoundedCornerShape(ImtihanRadii.card)
     val borderColor = colors.cardBorder.copy(
-        alpha = if (elevated) 0.9f else if (colors.isDark) 0.75f else 0.9f
+        alpha = if (elevated) 0.92f else if (colors.isDark) 0.72f else 0.92f
     )
-    val border = BorderStroke(com.imtihanpro.app.ui.theme.ImtihanDimensions.hairlineBorder, borderColor)
+    val border = BorderStroke(ImtihanDimensions.hairlineBorder, borderColor)
+    val contentModifier = Modifier
+        .padding(contentPadding)
+        .then(if (animateContent) Modifier.animateContentSize(animationSpec = ImtihanMotion.standardTween()) else Modifier)
 
     if (onClick != null) {
         Surface(
@@ -90,7 +104,7 @@ fun SilverBlueCard(
             border = border,
             tonalElevation = 0.dp
         ) {
-            Column(modifier = Modifier.padding(16.dp), content = content)
+            Column(modifier = contentModifier, content = content)
         }
     } else {
         Surface(
@@ -100,7 +114,67 @@ fun SilverBlueCard(
             border = border,
             tonalElevation = 0.dp
         ) {
-            Column(modifier = Modifier.padding(16.dp), content = content)
+            Column(modifier = contentModifier, content = content)
+        }
+    }
+}
+
+/**
+ * Cobalt-blue focal hero card matching the visual reference's signature Continue Learning,
+ * Subject header, and Mistake Master hero cards. Uses subtle gradient depth and crisp contrast.
+ */
+@Composable
+fun ImtihanHeroCard(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val colors = LocalImtihanColors.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (onClick != null && isPressed) 0.98f else 1f,
+        animationSpec = ImtihanMotion.snappySpring(),
+        label = "hero_press_scale"
+    )
+
+    val gradient = if (colors.isDark) {
+        Brush.linearGradient(
+            colors = listOf(Color(0xFF1F386E), Color(0xFF162447))
+        )
+    } else {
+        Brush.linearGradient(
+            colors = listOf(Color(0xFF3E67D6), Color(0xFF2848A3))
+        )
+    }
+    val shape = RoundedCornerShape(ImtihanRadii.panel)
+    val borderColor = if (colors.isDark) {
+        colors.accentBlue.copy(alpha = 0.42f)
+    } else {
+        Color(0xFF254399)
+    }
+
+    Surface(
+        modifier = modifier.graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        },
+        shape = shape,
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, borderColor),
+        onClick = onClick ?: {},
+        enabled = onClick != null,
+        interactionSource = interactionSource
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(gradient)
+        ) {
+            Column(
+                modifier = Modifier.padding(18.dp),
+                content = content
+            )
         }
     }
 }
@@ -133,7 +207,7 @@ fun AnimatedProgressRing(
     val colors = LocalImtihanColors.current
     val animatedSweep by animateFloatAsState(
         targetValue = (progress.coerceIn(0f, 1f)) * 360f,
-        animationSpec = tween(durationMillis = 550),
+        animationSpec = ImtihanMotion.emphasisTween(),
         label = "ring_sweep"
     )
     val ringColor = accentColor ?: colors.cyanPulse
@@ -152,20 +226,22 @@ fun AnimatedProgressRing(
                 size = arcSize,
                 style = Stroke(width = strokePx, cap = StrokeCap.Round)
             )
-            drawArc(
-                brush = Brush.sweepGradient(listOf(colors.accentBlue, ringColor, colors.accentBlue)),
-                startAngle = -90f,
-                sweepAngle = animatedSweep,
-                useCenter = false,
-                topLeft = topLeft,
-                size = arcSize,
-                style = Stroke(width = strokePx, cap = StrokeCap.Round)
-            )
+            if (animatedSweep > 0.5f) {
+                drawArc(
+                    brush = Brush.sweepGradient(listOf(colors.accentBlue, ringColor, colors.accentBlue)),
+                    startAngle = -90f,
+                    sweepAngle = animatedSweep,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = Stroke(width = strokePx, cap = StrokeCap.Round)
+                )
+            }
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = centerLabel,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleMedium.tabular(),
                 fontWeight = FontWeight.Bold,
                 color = colors.textPrimary
             )
@@ -220,7 +296,7 @@ fun ZeroPillMetaLine(
 ) {
     val colors = LocalImtihanColors.current
     Text(
-        text = text.uppercase(),
+        text = text,
         style = MaterialTheme.typography.labelSmall,
         color = color ?: colors.cyanPulse,
         modifier = modifier
@@ -254,13 +330,13 @@ fun OfflineModeBanner(visible: Boolean) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(14.dp),
-        color = colors.cardElevated,
-        border = BorderStroke(1.dp, colors.warningGold.copy(alpha = 0.55f))
+            .padding(vertical = 4.dp),
+        shape = RoundedCornerShape(ImtihanRadii.button),
+        color = colors.warningGold.copy(alpha = if (colors.isDark) 0.14f else 0.12f),
+        border = BorderStroke(1.dp, colors.warningGold.copy(alpha = 0.45f))
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -271,7 +347,7 @@ fun OfflineModeBanner(visible: Boolean) {
                 modifier = Modifier.size(18.dp)
             )
             Text(
-                text = "Offline mode active · Showing cached & downloaded materials",
+                text = "Offline mode · Showing downloaded & cached materials",
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textPrimary
             )
@@ -280,22 +356,36 @@ fun OfflineModeBanner(visible: Boolean) {
 }
 
 @Composable
-fun ImtihanLoadingView(message: String = "Loading study workspace...") {
+fun ImtihanLoadingView(
+    message: String = "Loading study workspace...",
+    showSkeletons: Boolean = false
+) {
     val colors = LocalImtihanColors.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(32.dp),
+            .padding(horizontal = ImtihanSpacing.md, vertical = ImtihanSpacing.lg),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.spacedBy(ImtihanSpacing.md)
     ) {
-        CircularProgressIndicator(color = colors.cyanPulse)
-        Spacer(modifier = Modifier.height(12.dp))
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodySmall,
-            color = colors.textSecondary
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            CircularProgressIndicator(
+                color = colors.accentBlue,
+                strokeWidth = 2.5.dp,
+                modifier = Modifier.size(22.dp)
+            )
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textSecondary
+            )
+        }
+        if (showSkeletons) {
+            ImtihanSkeletonList(count = 3)
+        }
     }
 }
 
@@ -303,42 +393,58 @@ fun ImtihanLoadingView(message: String = "Loading study workspace...") {
 fun ImtihanEmptyView(
     title: String,
     description: String,
+    icon: ImageVector = Icons.Outlined.Inbox,
+    tint: Color? = null,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null
 ) {
     val colors = LocalImtihanColors.current
+    val resolvedTint = tint ?: colors.accentBlue
     SilverBlueCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 12.dp),
+                .padding(vertical = 14.dp, horizontal = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(
-                imageVector = Icons.Outlined.Inbox,
-                contentDescription = null,
-                tint = colors.textSecondary,
-                modifier = Modifier.size(32.dp)
-            )
-            Spacer(modifier = Modifier.height(10.dp))
+            Surface(
+                shape = CircleShape,
+                color = resolvedTint.copy(alpha = 0.14f),
+                modifier = Modifier.size(52.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = resolvedTint,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
-                color = colors.textPrimary
+                fontWeight = FontWeight.SemiBold,
+                color = colors.textPrimary,
+                textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodySmall,
-                color = colors.textSecondary
+                color = colors.textSecondary,
+                textAlign = TextAlign.Center
             )
             if (actionLabel != null && onAction != null) {
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = onAction,
+                    modifier = Modifier.defaultMinSize(minHeight = ImtihanDimensions.minTouchTarget),
+                    shape = RoundedCornerShape(ImtihanRadii.button),
                     colors = ButtonDefaults.buttonColors(containerColor = colors.accentBlue)
                 ) {
-                    Text(actionLabel)
+                    Text(actionLabel, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -349,21 +455,58 @@ fun ImtihanEmptyView(
 fun ImtihanErrorView(message: String, onRetry: () -> Unit) {
     val colors = LocalImtihanColors.current
     SilverBlueCard(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Icon(
-                imageVector = Icons.Outlined.ErrorOutline,
-                contentDescription = null,
-                tint = colors.danger
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Unable to load content", style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
-                Text(message, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = colors.danger.copy(alpha = 0.14f),
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Outlined.ErrorOutline,
+                            contentDescription = "Error",
+                            tint = colors.danger,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Unable to load content",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.textPrimary
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary
+                    )
+                }
             }
-            Button(onClick = onRetry) {
-                Text("Retry")
+            Button(
+                onClick = onRetry,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = ImtihanDimensions.minTouchTarget),
+                shape = RoundedCornerShape(ImtihanRadii.button),
+                colors = ButtonDefaults.buttonColors(containerColor = colors.accentBlue)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Refresh,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.size(6.dp))
+                Text("Try Again", fontWeight = FontWeight.SemiBold)
             }
         }
     }

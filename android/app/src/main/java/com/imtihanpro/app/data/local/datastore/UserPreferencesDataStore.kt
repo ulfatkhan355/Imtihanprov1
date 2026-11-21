@@ -42,7 +42,8 @@ data class UserPreferencesState(
     val configuredApiBaseUrl: String = ApiConfig.defaultBaseUrl,
     val soundEffectsEnabled: Boolean = true,
     val hapticsEnabled: Boolean = true,
-    val readerHighContrastMode: String = "OLED"
+    val readerHighContrastMode: String = "OLED",
+    val allowDownloadOverMobileData: Boolean = false
 ) {
     fun apiLanguageCode(): String = if (languageCode.equals("Urdu", ignoreCase = true) || languageCode == "ur") "ur" else "en"
 }
@@ -79,6 +80,7 @@ class UserPreferencesDataStore(private val context: Context) {
         val SOUND_EFFECTS_ENABLED = booleanPreferencesKey("sound_effects_enabled")
         val HAPTICS_ENABLED = booleanPreferencesKey("haptics_enabled")
         val READER_HIGH_CONTRAST_MODE = stringPreferencesKey("reader_high_contrast_mode")
+        val ALLOW_DOWNLOAD_OVER_MOBILE_DATA = booleanPreferencesKey("allow_download_over_mobile_data")
     }
 
     val preferencesFlow: Flow<UserPreferencesState> = context.imtihanDataStore.data.map { prefs ->
@@ -114,7 +116,8 @@ class UserPreferencesDataStore(private val context: Context) {
             configuredApiBaseUrl = prefs[Keys.API_BASE_URL] ?: ApiConfig.defaultBaseUrl,
             soundEffectsEnabled = prefs[Keys.SOUND_EFFECTS_ENABLED] ?: true,
             hapticsEnabled = prefs[Keys.HAPTICS_ENABLED] ?: true,
-            readerHighContrastMode = prefs[Keys.READER_HIGH_CONTRAST_MODE] ?: "OLED"
+            readerHighContrastMode = prefs[Keys.READER_HIGH_CONTRAST_MODE] ?: "OLED",
+            allowDownloadOverMobileData = prefs[Keys.ALLOW_DOWNLOAD_OVER_MOBILE_DATA] ?: false
         )
     }
 
@@ -272,6 +275,12 @@ class UserPreferencesDataStore(private val context: Context) {
     suspend fun setReaderHighContrastMode(mode: String) {
         context.imtihanDataStore.edit { prefs ->
             prefs[Keys.READER_HIGH_CONTRAST_MODE] = if (mode == "PAPER") "PAPER" else "OLED"
+        }
+    }
+
+    suspend fun setAllowDownloadOverMobileData(enabled: Boolean) {
+        context.imtihanDataStore.edit { prefs ->
+            prefs[Keys.ALLOW_DOWNLOAD_OVER_MOBILE_DATA] = enabled
         }
     }
 }

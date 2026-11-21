@@ -93,11 +93,16 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import com.imtihanpro.app.R
+import com.imtihanpro.app.domain.engine.DownloadPausedReason
+import com.imtihanpro.app.domain.engine.DownloadState
+import com.imtihanpro.app.domain.engine.PdfDownloadEngine
 import com.imtihanpro.app.domain.model.PdfAnnotationUi
 import com.imtihanpro.app.domain.model.PdfBookmarkUi
 import com.imtihanpro.app.ui.theme.ImtihanRadii
@@ -134,6 +139,10 @@ fun ImtihanPdfReader(
     onAddAnnotation: (page: Int, noteText: String) -> Unit,
     onDeleteAnnotation: (annotationId: String) -> Unit,
     onBack: () -> Unit,
+    onPauseDownload: () -> Unit = {},
+    onResumeDownload: () -> Unit = {},
+    onCancelDownload: () -> Unit = {},
+    onDownloadOnMobileData: () -> Unit = {},
     coordinatorFactory: (File) -> PdfRenderCoordinator = { PdfRenderCoordinator(it) }
 ) {
     val colors = LocalImtihanColors.current
@@ -271,6 +280,8 @@ fun ImtihanPdfReader(
     ) {
         when {
             viewerState.isDownloading -> {
+                val primaryColor = if (readingTint == PdfReadingTint.DIM) Color.White else colors.textPrimary
+                val secondaryColor = if (readingTint == PdfReadingTint.DIM) Color.White.copy(alpha = 0.78f) else colors.textSecondary
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -279,15 +290,122 @@ fun ImtihanPdfReader(
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(24.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp)
                     ) {
-                        CircularProgressIndicator(color = colors.accentBlue)
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Text(
-                            text = "Preparing textbook PDF offline…",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = if (readingTint == PdfReadingTint.DIM) Color.White else colors.textPrimary
-                        )
+                        val dlState = viewerState.downloadState
+                        if (dlState == null) {
+                            CircularProgressIndicator(color = colors.accentBlue)
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Text(
+                                text = "Preparing textbook PDF offline…",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = primaryColor
+                            )
+                        } else {
+                            val statusLabel = when (dlState) {
+                                DownloadState.QUEUED -> stringResource(R.string.dl_state_queued)
+                                DownloadState.RUNNING -> stringResource(R.string.dl_state_downloading)
+                                DownloadState.VERIFYING -> stringResource(R.string.dl_state_verifying)
+                                DownloadState.PAUSED -> when (viewerState.pausedReason) {
+                                    DownloadPausedReason.WAITING_WIFI -> stringResource(R.string.dl_state_waiting_wifi)
+                                    DownloadPausedReason.WAITING_NETWORK -> stringResource(R.string.dl_state_waiting_network)
+                                    DownloadPausedReason.RETRY_BACKOFF -> stringResource(R.string.dl_state_retry_backoff)
+                                    else -> stringResource(R.string.dl_state_paused)
+                                }
+                                else -> "Preparing textbook PDF offline…"
+                            }
+                            Text(
+                                text = statusLabel,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = primaryColor,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            if (viewerState.progressPercent in 0..100 && dlState != DownloadState.VERIFYING) {
+                                LinearProgressIndicator(
+                                    progress = { (viewerState.progressPercent / 100f).coerceIn(0f, 1f) },
+                                    color = colors.accentBlue,
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.78f)
+                                        .height(7.dp)
+                                )
+                            } else {
+                                LinearProgressIndicator(
+                                    color = colors.accentBlue,
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.78f)
+                                        .height(7.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                            val bytesSummary = PdfDownloadEngine.formatBytesProgress(
+                                viewerState.bytesDownloaded,
+                                viewerState.totalBytes
+                            )
+                            val pctStr = if (viewerState.progressPercent >= 0) "${viewerState.progressPercent}%" else ""
+                            val speedStr = PdfDownloadEngine.formatSpeedBps(viewerState.speedBytesPerSec)
+                            val detailLine = listOf(pctStr, bytesSummary, speedStr)
+                                .filter { it.isNotBlank() }
+                                .joinToString(" · ")
+                            if (detailLine.isNotBlank()) {
+                                Text(
+                                    text = detailLine,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = secondaryColor,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                            if (!viewerState.errorMessage.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = viewerState.errorMessage,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = secondaryColor,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                if (dlState == DownloadState.PAUSED) {
+                                    if (viewerState.pausedReason == DownloadPausedReason.WAITING_WIFI) {
+                                        Button(
+                                            onClick = onDownloadOnMobileData,
+                                            shape = RoundedCornerShape(ImtihanRadii.button),
+                                            colors = ButtonDefaults.buttonColors(containerColor = colors.accentBlue)
+                                        ) {
+                                            Text(stringResource(R.string.dl_action_mobile_data))
+                                        }
+                                    } else {
+                                        Button(
+                                            onClick = onResumeDownload,
+                                            shape = RoundedCornerShape(ImtihanRadii.button),
+                                            colors = ButtonDefaults.buttonColors(containerColor = colors.accentBlue)
+                                        ) {
+                                            Text(stringResource(R.string.dl_action_resume))
+                                        }
+                                    }
+                                } else if (dlState == DownloadState.RUNNING || dlState == DownloadState.QUEUED) {
+                                    OutlinedButton(
+                                        onClick = onPauseDownload,
+                                        shape = RoundedCornerShape(ImtihanRadii.button)
+                                    ) {
+                                        Text(stringResource(R.string.dl_action_pause))
+                                    }
+                                }
+                                OutlinedButton(
+                                    onClick = {
+                                        onCancelDownload()
+                                        onBack()
+                                    },
+                                    shape = RoundedCornerShape(ImtihanRadii.button)
+                                ) {
+                                    Text(stringResource(R.string.dl_action_cancel))
+                                }
+                            }
+                        }
                     }
                 }
             }

@@ -1,26 +1,32 @@
 package com.imtihanpro.app.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.MenuBook
@@ -29,24 +35,22 @@ import androidx.compose.material.icons.outlined.Quiz
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.outlined.CloudDownload
 import com.imtihanpro.app.domain.engine.Stage3To8Engines
 import com.imtihanpro.app.domain.model.ChapterProgressStatus
 import com.imtihanpro.app.domain.model.ChapterUiModel
@@ -55,141 +59,235 @@ import com.imtihanpro.app.domain.model.SubjectUiModel
 import com.imtihanpro.app.domain.model.UiResourceState
 import com.imtihanpro.app.ui.components.ImtihanEmptyView
 import com.imtihanpro.app.ui.components.ImtihanErrorView
+import com.imtihanpro.app.ui.components.ImtihanHeroCard
 import com.imtihanpro.app.ui.components.ImtihanLoadingView
+import com.imtihanpro.app.ui.components.ImtihanNavigationRow
+import com.imtihanpro.app.ui.components.ImtihanPrimaryButton
 import com.imtihanpro.app.ui.components.ImtihanProgressBar
+import com.imtihanpro.app.ui.components.ImtihanSecondaryButton
+import com.imtihanpro.app.ui.components.ImtihanSegmentedControl
+import com.imtihanpro.app.ui.components.ImtihanStatusBadge
+import com.imtihanpro.app.ui.components.ImtihanTopBar
 import com.imtihanpro.app.ui.components.SilverBlueCanvas
 import com.imtihanpro.app.ui.components.SilverBlueCard
 import com.imtihanpro.app.ui.components.SubjectVectorIcon
-import com.imtihanpro.app.ui.components.ZeroPillMetaLine
+import com.imtihanpro.app.ui.theme.ImtihanDimensions
+import com.imtihanpro.app.ui.theme.ImtihanRadii
+import com.imtihanpro.app.ui.theme.ImtihanSpacing
 import com.imtihanpro.app.ui.theme.LocalImtihanColors
+import com.imtihanpro.app.ui.theme.tabular
 import com.imtihanpro.app.ui.theme.urduTextStyle
 
 /**
- * Screen 4: Subject Listing (2-column grid matching Silver Blue reference + Study Group label)
+ * Screen 4: Subject Listing (Curated 2-column grid with category filter pills & full-scroll grid)
  */
 @Composable
 fun SubjectListingScreen(
-    classLevel: Int = 9,
-    studyGroupCode: String = "SCIENCE_BIOLOGY",
+    classLevel: Int = 11,
+    studyGroupCode: String = "PRE_MEDICAL",
     subjectsState: UiResourceState<List<SubjectUiModel>>,
     onSelectSubject: (SubjectUiModel) -> Unit,
-    onOpenMotivation: () -> Unit = {}
+    onOpenMotivation: () -> Unit = {},
+    onRetrySubjects: () -> Unit = {}
 ) {
     val colors = LocalImtihanColors.current
     val groupLabel = Stage3To8Engines.STUDY_GROUPS.firstOrNull { it.code == studyGroupCode }?.label ?: studyGroupCode
+    var selectedFilter by remember { mutableStateOf("All") }
 
     SilverBlueCanvas {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-        ) {
-            Text(
-                text = "Class $classLevel Subjects",
-                style = MaterialTheme.typography.headlineSmall,
-                color = colors.textPrimary
+        Column(modifier = Modifier.fillMaxSize()) {
+            ImtihanTopBar(
+                title = "Class $classLevel Subjects",
+                subtitle = "$groupLabel · KPK BISE",
+                showBottomDivider = true
             )
-            Text(
-                text = "Track: $groupLabel",
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.accentBlue
-            )
-            Spacer(modifier = Modifier.height(12.dp))
 
             when (subjectsState) {
-                is UiResourceState.Loading -> ImtihanLoadingView()
-                is UiResourceState.Error -> ImtihanErrorView(subjectsState.message, onRetry = {})
-                is UiResourceState.Empty -> ImtihanEmptyView(subjectsState.title, subjectsState.description)
+                is UiResourceState.Loading -> ImtihanLoadingView(showSkeletons = true)
+                is UiResourceState.Error -> Box(modifier = Modifier.padding(ImtihanSpacing.md)) {
+                    ImtihanErrorView(subjectsState.message, onRetry = onRetrySubjects)
+                }
+                is UiResourceState.Empty -> Box(modifier = Modifier.padding(ImtihanSpacing.md)) {
+                    ImtihanEmptyView(subjectsState.title, subjectsState.description)
+                }
                 is UiResourceState.Success -> {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        items(subjectsState.data, key = { it.id }) { subject ->
-                            SilverBlueCard(
-                                onClick = { onSelectSubject(subject) },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    SubjectVectorIcon(
-                                        iconKey = subject.iconKey,
-                                        modifier = Modifier.size(34.dp)
-                                    )
-                                    Text(
-                                        text = "${subject.progressPercent}%",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = colors.cyanPulse
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Text(
-                                    text = subject.name,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = colors.textPrimary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "${subject.totalChapters} Chapters",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.textSecondary
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                ImtihanProgressBar(progress = subject.progressPercent / 100f)
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = "${subject.progressPercent}%",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = colors.textSecondary
-                                    )
-                                    Text(
-                                        text = if (subject.hasSeedContent) "Active" else "Syllabus",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = if (subject.hasSeedContent) colors.success else colors.textMuted
-                                    )
-                                }
+                    val allSubjects = subjectsState.data
+                    val filterOptions = listOf("All", "Science", "Languages", "Active")
+                    val filteredSubjects = remember(allSubjects, selectedFilter) {
+                        when (selectedFilter) {
+                            "Science" -> allSubjects.filter {
+                                it.iconKey.lowercase() in setOf("physics", "chemistry", "math", "biology", "cs")
                             }
+                            "Languages" -> allSubjects.filter {
+                                it.iconKey.lowercase() in setOf("english", "urdu", "islamiat")
+                            }
+                            "Active" -> allSubjects.filter { it.hasSeedContent }
+                            else -> allSubjects
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-                    SilverBlueCard(
-                        elevated = true,
-                        onClick = onOpenMotivation,
-                        modifier = Modifier.fillMaxWidth()
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        contentPadding = PaddingValues(ImtihanSpacing.md),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxSize()
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.EmojiEvents,
-                                contentDescription = null,
-                                tint = colors.warningGold,
-                                modifier = Modifier.size(28.dp)
-                            )
-                            Column {
-                                Text(
-                                    text = "View XP, Badges & Challenges",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = colors.textPrimary
+                        item(span = { GridItemSpan(2) }) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                filterOptions.forEach { filter ->
+                                    val selected = selectedFilter == filter
+                                    Surface(
+                                        onClick = { selectedFilter = filter },
+                                        shape = RoundedCornerShape(ImtihanRadii.chip),
+                                        color = if (selected) colors.accentBlue else colors.cardSurface,
+                                        border = BorderStroke(
+                                            ImtihanDimensions.hairlineBorder,
+                                            if (selected) colors.accentBlue else colors.cardBorder
+                                        ),
+                                        modifier = Modifier.defaultMinSize(minHeight = 38.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = filter,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                                color = if (selected) Color.White else colors.textSecondary
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if (filteredSubjects.isEmpty()) {
+                            item(span = { GridItemSpan(2) }) {
+                                ImtihanEmptyView(
+                                    title = "No matching subjects",
+                                    description = "Switch back to All to inspect every subject in your stream.",
+                                    actionLabel = "Show All",
+                                    onAction = { selectedFilter = "All" }
                                 )
-                                Text(
-                                    text = "Track your board mastery milestones honestly.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.textSecondary
-                                )
+                            }
+                        } else {
+                            items(filteredSubjects, key = { it.id }) { subject ->
+                                SilverBlueCard(
+                                    onClick = { onSelectSubject(subject) },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(ImtihanRadii.chip),
+                                            color = colors.accentBlue.copy(alpha = 0.14f),
+                                            modifier = Modifier.size(42.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                SubjectVectorIcon(
+                                                    iconKey = subject.iconKey,
+                                                    modifier = Modifier.size(26.dp)
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            text = "${subject.progressPercent}%",
+                                            style = MaterialTheme.typography.labelMedium.tabular(),
+                                            fontWeight = FontWeight.Bold,
+                                            color = colors.cyanPulse
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = subject.name,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = colors.textPrimary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "${subject.totalChapters} Chapters",
+                                        style = MaterialTheme.typography.bodySmall.tabular(),
+                                        color = colors.textSecondary
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    ImtihanProgressBar(progress = subject.progressPercent / 100f)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        ImtihanStatusBadge(
+                                            text = if (subject.hasSeedContent) "Study Ready" else "Syllabus",
+                                            tint = if (subject.hasSeedContent) colors.success else colors.textMuted
+                                        )
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                                            contentDescription = null,
+                                            tint = colors.textMuted,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        item(span = { GridItemSpan(2) }) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            SilverBlueCard(
+                                elevated = true,
+                                onClick = onOpenMotivation,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(ImtihanRadii.chip),
+                                        color = colors.warningGold.copy(alpha = 0.16f),
+                                        modifier = Modifier.size(42.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.EmojiEvents,
+                                                contentDescription = null,
+                                                tint = colors.warningGold,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        }
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "XP, Badges & Weekly Challenges",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = colors.textPrimary
+                                        )
+                                        Text(
+                                            text = "Track your board mastery milestones honestly.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = colors.textSecondary
+                                        )
+                                    }
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                                        contentDescription = null,
+                                        tint = colors.textMuted
+                                    )
+                                }
                             }
                         }
                     }
@@ -200,7 +298,7 @@ fun SubjectListingScreen(
 }
 
 /**
- * Screen 5: Subject Details (Header + Chapters / Resources Tabs + Subject Mock Exam CTA)
+ * Screen 5: Subject Details (Hero + Chapters / Books & Papers Segmented Control + Subject Mock CTA)
  */
 @Composable
 fun SubjectDetailsScreen(
@@ -216,7 +314,8 @@ fun SubjectDetailsScreen(
     onOpenPdf: (PdfResourceUi) -> Unit = {},
     onStartSubjectMock: () -> Unit = {},
     onDownloadOfflinePack: () -> Unit = {},
-    onClearOfflinePackStatus: () -> Unit = {}
+    onClearOfflinePackStatus: () -> Unit = {},
+    onRetryChapters: () -> Unit = {}
 ) {
     val colors = LocalImtihanColors.current
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -227,150 +326,169 @@ fun SubjectDetailsScreen(
 
     SilverBlueCanvas {
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                        contentDescription = "Back",
-                        tint = colors.textPrimary
-                    )
-                }
-                Text(
-                    text = subject?.name ?: "Subject Details",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = colors.textPrimary
-                )
-            }
+            ImtihanTopBar(
+                title = subject?.name ?: "Subject Details",
+                subtitle = "${subject?.boardCode ?: "KPK"} Class ${subject?.classLevel ?: 11}",
+                onBack = onBack,
+                showBottomDivider = true
+            )
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = PaddingValues(ImtihanSpacing.md),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item {
-                    SilverBlueCard(elevated = true, modifier = Modifier.fillMaxWidth()) {
+                    ImtihanHeroCard(modifier = Modifier.fillMaxWidth()) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            SubjectVectorIcon(
-                                iconKey = subject?.iconKey ?: "physics",
-                                modifier = Modifier.size(40.dp)
-                            )
+                            Surface(
+                                shape = RoundedCornerShape(ImtihanRadii.chip),
+                                color = Color.White.copy(alpha = 0.18f),
+                                modifier = Modifier.size(46.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    SubjectVectorIcon(
+                                        iconKey = subject?.iconKey ?: "physics",
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                            }
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = subject?.name ?: "Physics",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = colors.textPrimary
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
                                 )
                                 Text(
-                                    text = "${subject?.totalChapters ?: 9} Chapters · ${subject?.boardCode ?: "KPK"} Class ${subject?.classLevel ?: 9}",
+                                    text = "${subject?.totalChapters ?: 9} Chapters · ${subject?.progressPercent ?: 0}% Mastered",
+                                    style = MaterialTheme.typography.bodySmall.tabular(),
+                                    color = Color.White.copy(alpha = 0.85f)
+                                )
+                            }
+                        }
+
+                        if (!subject?.description.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = subject!!.description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.9f)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                        ImtihanProgressBar(
+                            progress = (subject?.progressPercent ?: 0) / 100f,
+                            trackColor = Color.White.copy(alpha = 0.25f),
+                            fillColor = Color(0xFF7DD3FC)
+                        )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = onStartSubjectMock,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .defaultMinSize(minHeight = ImtihanDimensions.minTouchTarget),
+                                shape = RoundedCornerShape(ImtihanRadii.button),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.55f)),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                            ) {
+                                Icon(Icons.Outlined.Quiz, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Subject Mock", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Button(
+                                onClick = onDownloadOfflinePack,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .defaultMinSize(minHeight = ImtihanDimensions.minTouchTarget),
+                                shape = RoundedCornerShape(ImtihanRadii.button),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color.White,
+                                    contentColor = Color(0xFF1D4ED8)
+                                )
+                            ) {
+                                Icon(Icons.Outlined.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Save (${"%.1f".format(subject?.offlinePackSizeMb ?: 0.6)} MB)",
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (!offlinePackStatusMessage.isNullOrBlank()) {
+                    item {
+                        Surface(
+                            onClick = onClearOfflinePackStatus,
+                            shape = RoundedCornerShape(ImtihanRadii.button),
+                            color = colors.success.copy(alpha = 0.14f),
+                            border = BorderStroke(1.dp, colors.success.copy(alpha = 0.4f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "$offlinePackStatusMessage · Tap to dismiss",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.success,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
+                    }
+                }
+
+                if (!subject?.pairingSchemeSummary.isNullOrBlank() || biseSummary.totalMappedMarks > 0) {
+                    item {
+                        SilverBlueCard(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "KPK BISE Pairing Scheme",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = colors.textPrimary
+                                )
+                                if (biseSummary.totalMappedMarks > 0) {
+                                    ImtihanStatusBadge(
+                                        text = "${biseSummary.totalMappedMarks} Marks · ${biseSummary.highYieldChaptersCount} High-Yield",
+                                        tint = colors.cyanPulse
+                                    )
+                                }
+                            }
+                            if (!subject?.pairingSchemeSummary.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = subject!!.pairingSchemeSummary!!,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = colors.textSecondary
                                 )
                             }
                         }
-                        if (!subject?.description.isNullOrBlank()) {
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = subject!!.description,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.textMuted
-                            )
-                        }
-                        if (!subject?.pairingSchemeSummary.isNullOrBlank() || biseSummary.totalMappedMarks > 0) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = colors.canvasDeep.copy(alpha = 0.7f),
-                                border = BorderStroke(1.dp, colors.cyanPulse.copy(alpha = 0.35f)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(10.dp)) {
-                                    ZeroPillMetaLine(
-                                        text = "KPK BISE PAIRING · ${biseSummary.totalMappedMarks} MAPPED MARKS (${biseSummary.highYieldChaptersCount} HIGH-YIELD CH)"
-                                    )
-                                    if (!subject?.pairingSchemeSummary.isNullOrBlank()) {
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = subject!!.pairingSchemeSummary!!,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = colors.textPrimary
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(10.dp))
-                        ImtihanProgressBar(progress = (subject?.progressPercent ?: 0) / 100f)
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(
-                                onClick = onStartSubjectMock,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Outlined.Quiz, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Subject Mock", maxLines = 1)
-                            }
-                            Button(
-                                onClick = onDownloadOfflinePack,
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = colors.accentBlue)
-                            ) {
-                                Icon(Icons.Outlined.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Save Pack (${"%.1f".format(subject?.offlinePackSizeMb ?: 0.6)}M)", maxLines = 1)
-                            }
-                        }
-                        if (!offlinePackStatusMessage.isNullOrBlank()) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Surface(
-                                onClick = onClearOfflinePackStatus,
-                                shape = RoundedCornerShape(10.dp),
-                                color = colors.success.copy(alpha = 0.14f),
-                                border = BorderStroke(1.dp, colors.success.copy(alpha = 0.4f)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = "$offlinePackStatusMessage (Tap to dismiss)",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = colors.success,
-                                    modifier = Modifier.padding(10.dp)
-                                )
-                            }
-                        }
                     }
                 }
 
                 item {
-                    TabRow(
-                        selectedTabIndex = selectedTab,
-                        containerColor = colors.cardSurface,
-                        contentColor = colors.accentBlue
-                    ) {
-                        Tab(
-                            selected = selectedTab == 0,
-                            onClick = { selectedTab = 0 },
-                            text = { Text("Chapters") }
-                        )
-                        Tab(
-                            selected = selectedTab == 1,
-                            onClick = { selectedTab = 1 },
-                            text = { Text("Books & Papers") }
-                        )
-                    }
+                    ImtihanSegmentedControl(
+                        options = listOf("Chapters", "Books & Papers"),
+                        selectedIndex = selectedTab,
+                        onSelect = { selectedTab = it }
+                    )
                 }
 
                 if (selectedTab == 0) {
                     when (chaptersState) {
-                        is UiResourceState.Loading -> item { ImtihanLoadingView() }
-                        is UiResourceState.Error -> item { ImtihanErrorView(chaptersState.message, onRetry = {}) }
+                        is UiResourceState.Loading -> item { ImtihanLoadingView(showSkeletons = true) }
+                        is UiResourceState.Error -> item { ImtihanErrorView(chaptersState.message, onRetry = onRetryChapters) }
                         is UiResourceState.Empty -> item { ImtihanEmptyView(chaptersState.title, chaptersState.description) }
                         is UiResourceState.Success -> {
                             items(chaptersState.data, key = { it.id }) { chapter ->
@@ -382,16 +500,10 @@ fun SubjectDetailsScreen(
                             }
                             item {
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Button(
-                                    onClick = onOpenAllChapters,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(48.dp),
-                                    shape = RoundedCornerShape(14.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = colors.accentBlue)
-                                ) {
-                                    Text("Browse All Chapters")
-                                }
+                                ImtihanPrimaryButton(
+                                    text = "Browse All Chapters",
+                                    onClick = onOpenAllChapters
+                                )
                             }
                         }
                     }
@@ -401,25 +513,53 @@ fun SubjectDetailsScreen(
                             SilverBlueCard(onClick = { onOpenPdf(pdf) }, modifier = Modifier.fillMaxWidth()) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Icon(Icons.Outlined.MenuBook, contentDescription = null, tint = colors.accentBlue)
+                                    Surface(
+                                        shape = RoundedCornerShape(ImtihanRadii.chip),
+                                        color = colors.accentBlue.copy(alpha = 0.14f),
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.MenuBook,
+                                                contentDescription = null,
+                                                tint = colors.accentBlue,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(pdf.title, style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
                                         Text(
-                                            "${pdf.category.replace('_', ' ')} · ${pdf.pageCount} pages · ${"%.1f".format(pdf.sizeMb)} MB",
-                                            style = MaterialTheme.typography.bodySmall,
+                                            text = pdf.title,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = colors.textPrimary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "${pdf.category.replace('_', ' ')} · ${pdf.pageCount} pages · ${"%.1f".format(pdf.sizeMb)} MB",
+                                            style = MaterialTheme.typography.bodySmall.tabular(),
                                             color = colors.textSecondary
                                         )
                                     }
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                                        contentDescription = null,
+                                        tint = colors.textMuted
+                                    )
                                 }
                             }
                         }
                     }
                     item {
-                        SilverBlueCard(onClick = onOpenPastPapers, modifier = Modifier.fillMaxWidth()) {
-                            Text("Board Past Papers & PDF Library", style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
-                            Text("Solved and original KPK BISE papers, textbooks & pairing schemes", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                        SilverBlueCard(contentPadding = PaddingValues(0.dp), modifier = Modifier.fillMaxWidth()) {
+                            ImtihanNavigationRow(
+                                title = "Board Past Papers & PDF Library",
+                                subtitle = "Solved & original KPK BISE papers, textbooks & pairing schemes",
+                                icon = Icons.Outlined.MenuBook,
+                                onClick = onOpenPastPapers
+                            )
                         }
                     }
                 }
@@ -436,38 +576,29 @@ fun ChapterListingScreen(
     subjectTitle: String,
     chaptersState: UiResourceState<List<ChapterUiModel>>,
     onBack: () -> Unit,
-    onSelectChapter: (ChapterUiModel) -> Unit
+    onSelectChapter: (ChapterUiModel) -> Unit,
+    onRetryChapters: () -> Unit = {}
 ) {
-    val colors = LocalImtihanColors.current
     SilverBlueCanvas {
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                        contentDescription = "Back",
-                        tint = colors.textPrimary
-                    )
-                }
-                Text(
-                    text = "$subjectTitle Chapters",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = colors.textPrimary
-                )
-            }
+            ImtihanTopBar(
+                title = "$subjectTitle Chapters",
+                subtitle = "Select a chapter to start",
+                onBack = onBack,
+                showBottomDivider = true
+            )
 
             when (chaptersState) {
-                is UiResourceState.Loading -> ImtihanLoadingView()
-                is UiResourceState.Error -> ImtihanErrorView(chaptersState.message, onRetry = {})
-                is UiResourceState.Empty -> ImtihanEmptyView(chaptersState.title, chaptersState.description)
+                is UiResourceState.Loading -> ImtihanLoadingView(showSkeletons = true)
+                is UiResourceState.Error -> Box(modifier = Modifier.padding(ImtihanSpacing.md)) {
+                    ImtihanErrorView(chaptersState.message, onRetry = onRetryChapters)
+                }
+                is UiResourceState.Empty -> Box(modifier = Modifier.padding(ImtihanSpacing.md)) {
+                    ImtihanEmptyView(chaptersState.title, chaptersState.description)
+                }
                 is UiResourceState.Success -> {
                     LazyColumn(
-                        contentPadding = PaddingValues(16.dp),
+                        contentPadding = PaddingValues(ImtihanSpacing.md),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         items(chaptersState.data, key = { it.id }) { chapter ->
@@ -513,23 +644,26 @@ private fun ChapterRowCard(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = colors.cardElevated,
-                border = BorderStroke(1.dp, colors.cardBorder),
-                modifier = Modifier.size(38.dp)
+                shape = RoundedCornerShape(ImtihanRadii.chip),
+                color = statusTint.copy(alpha = 0.14f),
+                modifier = Modifier.size(40.dp)
             ) {
-                Icon(
-                    imageVector = statusIcon,
-                    contentDescription = statusText,
-                    tint = statusTint,
-                    modifier = Modifier.padding(8.dp)
-                )
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = statusIcon,
+                        contentDescription = statusText,
+                        tint = statusTint,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "${chapter.chapterNumber}. ${chapter.title}",
                     style = MaterialTheme.typography.titleSmall,
-                    color = colors.textPrimary
+                    color = colors.textPrimary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
                 if (preferUrdu && !chapter.titleUrdu.isNullOrBlank()) {
                     Text(
@@ -538,11 +672,11 @@ private fun ChapterRowCard(
                         color = colors.cyanPulse
                     )
                 }
-                val marksPart = if (chapter.boardWeightageMarks > 0) " · ${chapter.boardWeightageMarks} BISE Marks" else ""
+                val marksPart = if (chapter.boardWeightageMarks > 0) " · ${chapter.boardWeightageMarks} Marks" else ""
                 val topicsPart = if (chapter.topics.isNotEmpty()) " · ${chapter.topics.size} topics" else ""
                 Text(
                     text = "$statusText · ${chapter.mcqCount} MCQs$topicsPart$marksPart",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.tabular(),
                     color = colors.textSecondary
                 )
                 if (!chapter.pairingHint.isNullOrBlank()) {
@@ -558,7 +692,8 @@ private fun ChapterRowCard(
             Icon(
                 imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                 contentDescription = null,
-                tint = colors.textSecondary
+                tint = colors.textMuted,
+                modifier = Modifier.size(20.dp)
             )
         }
     }

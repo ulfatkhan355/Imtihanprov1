@@ -196,8 +196,10 @@ class PdfRenderCoordinator(
             val safeIdx = pageIndex.coerceIn(0, (pageCount - 1).coerceAtLeast(0))
 
             runCatching {
-                val (wPts, hPts) = backend.readPageSizePts(safeIdx)
-                val actualRatio = PdfPageRatio(safeIdx, wPts, hPts).also { ratios[safeIdx] = it }
+                val actualRatio = ratios[safeIdx] ?: run {
+                    val (wPts, hPts) = backend.readPageSizePts(safeIdx)
+                    PdfPageRatio(safeIdx, wPts, hPts).also { ratios[safeIdx] = it }
+                }
                 val (w, h) = PdfViewportMath.computeBaseFitSize(
                     pageWidthPts = actualRatio.widthPts,
                     pageHeightPts = actualRatio.heightPts,

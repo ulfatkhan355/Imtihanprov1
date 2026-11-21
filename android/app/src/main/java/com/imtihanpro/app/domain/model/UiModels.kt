@@ -268,6 +268,24 @@ data class DownloadedFileUi(
     val statusLabel: String
 )
 
+data class DownloadTaskUi(
+    val pdfId: String,
+    val paperId: String,
+    val title: String,
+    val categoryLabel: String,
+    val state: com.imtihanpro.app.domain.engine.DownloadState,
+    val pausedReason: com.imtihanpro.app.domain.engine.DownloadPausedReason,
+    val bytesDownloaded: Long,
+    val totalBytes: Long,
+    val progressPercent: Int,
+    val speedBytesPerSec: Long,
+    val errorCode: String? = null,
+    val errorMessage: String? = null,
+    val localPath: String? = null,
+    val allowMobileData: Boolean = false,
+    val updatedAtEpochMs: Long = 0L
+)
+
 data class StudentProfileUi(
     val displayName: String,
     val isGuest: Boolean,

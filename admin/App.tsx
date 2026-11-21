@@ -410,6 +410,9 @@ export default function AdminApp() {
   };
 
   const handlePromoteSubmission = async (submissionId: string) => {
+    if (connectionMode !== 'live_api') {
+      return { ok: false, error: 'Promotion to D1 drafts requires Live API connection mode.' };
+    }
     try {
       await apiClient.promoteAiSubmission(submissionId);
       await loadLiveDashboard();

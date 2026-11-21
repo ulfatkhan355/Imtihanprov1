@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">امتحان پرو</string>
+
+    <!-- Download notification channel & group -->
+    <string name="dl_notif_channel_name">پی ڈی ایف ڈاؤن لوڈز</string>
+    <string name="dl_notif_channel_desc">درسی کتب اور سابقہ پرچوں کے ڈاؤن لوڈ کی پیش رفت، روکنے/جاری رکھنے اور مکمل ہونے کی اطلاعات دکھاتا ہے۔</string>
+    <string name="dl_notif_group_summary">آف لائن پی ڈی ایف ڈاؤن لوڈز</string>
+
+    <!-- Download states (Urdu) -->
+    <string name="dl_state_queued">قطار میں ہے</string>
+    <string name="dl_state_downloading">ڈاؤن لوڈ ہو رہا ہے</string>
+    <string name="dl_state_paused">روکا ہوا ہے</string>
+    <string name="dl_state_waiting_wifi">روکا ہوا — وائی فائی کا انتظار</string>
+    <string name="dl_state_waiting_network">روکا ہوا — نیٹ ورک کا انتظار</string>
+    <string name="dl_state_retry_backoff">دوبارہ کوشش کا انتظار</string>
+    <string name="dl_state_verifying">پی ڈی ایف کی تصدیق ہو رہی ہے…</string>
+    <string name="dl_state_completed">آف لائن دستیاب ہے</string>
+    <string name="dl_state_failed">ڈاؤن لوڈ ناکام</string>
+    <string name="dl_state_corrupt">فائل خراب ہے</string>
+    <string name="dl_state_cancelled">منسوخ</string>
+
+    <!-- Download actions & prompts -->
+    <string name="dl_action_pause">روکیں</string>
+    <string name="dl_action_resume">جاری رکھیں</string>
+    <string name="dl_action_cancel">منسوخ کریں</string>
+    <string name="dl_action_retry">دوبارہ کوشش</string>
+    <string name="dl_action_retry_all">سب دوبارہ کوشش کریں</string>
+    <string name="dl_action_open">پی ڈی ایف کھولیں</string>
+    <string name="dl_action_mobile_data">موبائل ڈیٹا پر ڈاؤن لوڈ کریں</string>
+    <string name="dl_completed_notif_text">آف لائن محفوظ ہو گیا — کھولنے کے لیے ٹیپ کریں</string>
+    <string name="dl_error_low_storage">اس پی ڈی ایف کو ڈاؤن لوڈ کرنے کے لیے کافی اسٹوریج موجود نہیں ہے۔</string>
+    <string name="dl_error_wifi_required">فائل 5 MB سے بڑی ہے۔ وائی فائی کا انتظار ہے، یا موبائل ڈیٹا پر ڈاؤن لوڈ منتخب کریں۔</string>
+    <string name="dl_error_corrupt_deleted">ڈاؤن لوڈ شدہ فائل خراب تھی اور ہٹا دی گئی۔ دوبارہ کوشش کریں۔</string>
+    <string name="dl_notif_permission_title">ڈاؤن لوڈ کی پیش رفت کی اطلاعات دکھائیں؟</string>
+    <string name="dl_notif_permission_body">اطلاعات کی اجازت دیں تاکہ امتحان پرو سست نیٹ ورک پر بھی ڈاؤن لوڈ کی پیش رفت اور روکنے/جاری رکھنے کے بٹن دکھا سکے۔</string>
+    <string name="dl_notif_permission_allow">اجازت دیں</string>
+    <string name="dl_notif_permission_not_now">ابھی نہیں</string>
+</resources>

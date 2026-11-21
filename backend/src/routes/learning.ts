@@ -348,7 +348,7 @@ export async function handleLearningRoutes(
     const mcqId = decodeURIComponent(mistakeResolveMatch[1]);
     const nowIso = new Date().toISOString();
     const res = await env.DB.prepare(
-      'UPDATE student_mistakes SET mastered = 1, last_attempted_at_iso = ? WHERE student_id = ? AND mcq_id = ?'
+      'UPDATE student_mistakes SET mastered = 1, last_attempted_at_iso = ? WHERE student_id = ? AND mcq_id = ? AND mastered = 0'
     )
       .bind(nowIso, resolved.studentId, mcqId)
       .run();
@@ -442,6 +442,15 @@ export async function handleLearningRoutes(
     const body = (await request.json().catch(() => null)) as ApiFlashcardReviewRequest | null;
     if (!body || !body.flashcardId || typeof body.quality !== 'number' || body.quality < 0 || body.quality > 5) {
       throw new HttpError(400, 'INVALID_REVIEW', 'flashcardId and quality (0..5) are required.');
+    }
+
+    const flashcardExists = await env.DB.prepare(
+      'SELECT id FROM flashcards WHERE id = ? LIMIT 1'
+    )
+      .bind(body.flashcardId)
+      .first<{ id: string }>();
+    if (!flashcardExists) {
+      throw new HttpError(404, 'FLASHCARD_NOT_FOUND', `Flashcard ${body.flashcardId} not found.`);
     }
 
     const existing = await env.DB.prepare(
@@ -740,15 +749,17 @@ export async function handleLearningRoutes(
     } | null;
     if (!body) throw new HttpError(400, 'INVALID_PLANNER_CONFIG', 'JSON payload required.');
     const nowIso = new Date().toISOString();
+    const hasCountdownField = Object.prototype.hasOwnProperty.call(body, 'examCountdownDateIso');
     await env.DB.prepare(
       `UPDATE students SET
         daily_target_minutes = COALESCE(?, daily_target_minutes),
-        exam_countdown_date_iso = ?,
+        exam_countdown_date_iso = CASE WHEN ? = 1 THEN ? ELSE exam_countdown_date_iso END,
         updated_at_iso = ?
        WHERE id = ?`
     )
       .bind(
         body.dailyTargetMinutes ? Math.max(10, Math.min(480, body.dailyTargetMinutes)) : null,
+        hasCountdownField ? 1 : 0,
         body.examCountdownDateIso ?? null,
         nowIso,
         resolved.studentId
@@ -762,7 +773,21 @@ export async function handleLearningRoutes(
     if (!body || !body.title?.trim()) {
       throw new HttpError(400, 'INVALID_TASK', 'title is required.');
     }
-    const id = `tsk_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
+    const requestedId =
+      typeof body.id === 'string' && /^[A-Za-z0-9_-]{6,64}$/.test(body.id.trim())
+        ? body.id.trim()
+        : null;
+    let id = requestedId || `tsk_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
+    if (requestedId) {
+      const existingOwner = await env.DB.prepare(
+        'SELECT student_id FROM student_study_tasks WHERE id = ? LIMIT 1'
+      )
+        .bind(requestedId)
+        .first<{ student_id: string }>();
+      if (existingOwner && existingOwner.student_id !== resolved.studentId) {
+        id = `tsk_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
+      }
+    }
     const nowIso = new Date().toISOString();
     const plannedDateIso = body.plannedDateIso || nowIso.slice(0, 10);
     const estimatedMinutes = Math.max(5, Math.min(240, Number(body.estimatedMinutes ?? 30)));
@@ -772,7 +797,14 @@ export async function handleLearningRoutes(
       `INSERT INTO student_study_tasks (
         id, student_id, title, subject_id, chapter_id, planned_date_iso,
         estimated_minutes, task_type, completed, completed_at_iso, created_at_iso
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?)`
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        title = excluded.title,
+        subject_id = excluded.subject_id,
+        chapter_id = excluded.chapter_id,
+        planned_date_iso = excluded.planned_date_iso,
+        estimated_minutes = excluded.estimated_minutes,
+        task_type = excluded.task_type`
     )
       .bind(
         id,
@@ -810,10 +842,10 @@ export async function handleLearningRoutes(
     }
     const nowIso = new Date().toISOString();
     const task = await env.DB.prepare(
-      'SELECT estimated_minutes FROM student_study_tasks WHERE id = ? AND student_id = ? LIMIT 1'
+      'SELECT estimated_minutes, completed FROM student_study_tasks WHERE id = ? AND student_id = ? LIMIT 1'
     )
       .bind(taskId, resolved.studentId)
-      .first<{ estimated_minutes: number }>();
+      .first<{ estimated_minutes: number; completed: number }>();
 
     if (!task) throw new HttpError(404, 'TASK_NOT_FOUND', `Study task ${taskId} not found.`);
 
@@ -823,7 +855,8 @@ export async function handleLearningRoutes(
       .bind(body.completed ? 1 : 0, body.completed ? nowIso : null, taskId, resolved.studentId)
       .run();
 
-    if (body.completed) {
+    const wasCompleted = task.completed === 1;
+    if (!wasCompleted && body.completed) {
       await recordStudentActivityDay(
         env,
         resolved.studentId,

@@ -1078,6 +1078,7 @@ export async function handleAdminRoutes(
         submission_type: string;
         payload_json: string;
         agent_name: string;
+        promoted_content_id: string | null;
       }>();
 
     if (!sub) {
@@ -1085,6 +1086,9 @@ export async function handleAdminRoutes(
     }
     if (sub.status !== 'approved') {
       throw new HttpError(409, 'PROMOTE_REQUIRES_APPROVAL', 'Approve the AI submission before promoting it to draft content.');
+    }
+    if (sub.promoted_content_id) {
+      throw new HttpError(409, 'ALREADY_PROMOTED', 'This AI submission has already been promoted to chapter draft.');
     }
 
     const parsed = safeJsonParse<{
@@ -1131,6 +1135,13 @@ export async function handleAdminRoutes(
           nowIso
         )
         .run();
+
+      const flagCol = mode === 'revision_notes' ? 'has_revision_notes' : 'has_detailed_notes';
+      await env.DB.prepare(
+        `UPDATE chapters SET ${flagCol} = 1, updated_at_iso = ? WHERE id = ?`
+      )
+        .bind(nowIso, targetChapterId)
+        .run();
     }
 
     if (Array.isArray(parsed.mcqs) && parsed.mcqs.length > 0) {
@@ -1162,10 +1173,11 @@ export async function handleAdminRoutes(
         .run();
     }
 
+    const promotionMarker = promotedContentId || `mcqs_promoted_${submissionId}`;
     await env.DB.prepare(
       'UPDATE ai_agent_submissions SET chapter_id = ?, promoted_content_id = ?, updated_at_iso = ? WHERE id = ?'
     )
-      .bind(targetChapterId, promotedContentId, nowIso, submissionId)
+      .bind(targetChapterId, promotionMarker, nowIso, submissionId)
       .run();
 
     await appendAuditLog(env.DB, {
@@ -1230,6 +1242,21 @@ export async function handleAdminRoutes(
       throw new HttpError(422, 'INVALID_PDF_FILE', validation.reason || 'Invalid PDF upload.');
     }
 
+    const computedSha256 = (await sha256Hex(bytes)).toLowerCase();
+    const clientShaRaw = String(form.get('checksumSha256') || '').trim().toLowerCase();
+    if (clientShaRaw) {
+      if (!/^[0-9a-f]{64}$/.test(clientShaRaw)) {
+        throw new HttpError(400, 'INVALID_CHECKSUM', 'checksumSha256 must be a valid 64-character SHA-256 hex digest.');
+      }
+      if (clientShaRaw !== computedSha256) {
+        throw new HttpError(
+          422,
+          'CHECKSUM_MISMATCH',
+          'Uploaded PDF SHA-256 checksum does not match supplied checksumSha256.'
+        );
+      }
+    }
+
     const suffix = crypto.randomUUID().slice(0, 6);
     const objectKey = buildB2ObjectKey(
       subject.board_code,
@@ -1240,6 +1267,9 @@ export async function handleAdminRoutes(
 
     const b2Client = new BackblazeB2Client(env, fetchFn);
     const uploaded = await b2Client.putObject(objectKey, bytes, 'application/pdf');
+    if (!/^[0-9a-f]{64}$/i.test(uploaded.checksumSha256)) {
+      throw new HttpError(502, 'CHECKSUM_REQUIRED', 'Uploaded PDF SHA-256 checksum computation failed.');
+    }
     recordUsageDelta({ b2UploadBytes: uploaded.fileSizeBytes });
 
     const pdfId = `pdf_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`;

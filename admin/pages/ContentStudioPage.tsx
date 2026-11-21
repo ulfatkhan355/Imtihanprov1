@@ -28,6 +28,23 @@ interface ContentStudioPageProps {
   onDeleteMcq?: (mcqId: string) => Promise<void> | void;
 }
 
+function selectPreferredChapterContent(
+  contents: AdminDataset['contents'],
+  chapterId: string
+) {
+  const candidates = contents.filter((c) => c.chapterId === chapterId && c.publishStatus !== 'rejected');
+  if (candidates.length === 0) return contents.find((c) => c.chapterId === chapterId);
+  const rankStatus = (s: PublishStatus) =>
+    s === 'draft' ? 4 : s === 'in_review' ? 3 : s === 'approved' ? 2 : s === 'published' ? 1 : 0;
+  return [...candidates].sort((a, b) => {
+    const typeDelta = (b.mode === 'detailed_notes' ? 1 : 0) - (a.mode === 'detailed_notes' ? 1 : 0);
+    if (typeDelta !== 0) return typeDelta;
+    const statusDelta = rankStatus(b.publishStatus) - rankStatus(a.publishStatus);
+    if (statusDelta !== 0) return statusDelta;
+    return (b.updatedAtIso || '').localeCompare(a.updatedAtIso || '');
+  })[0];
+}
+
 export function ContentStudioPage({
   dataset,
   connectionMode,
@@ -39,7 +56,7 @@ export function ContentStudioPage({
   onCreateMcq,
   onDeleteMcq,
 }: ContentStudioPageProps) {
-  const activeContent = dataset.contents.find((c) => c.chapterId === selectedChapterId);
+  const activeContent = selectPreferredChapterContent(dataset.contents, selectedChapterId);
   const activeChapter = dataset.chapters.find((c) => c.id === selectedChapterId);
   const activeSubject = dataset.subjects.find((s) => s.id === activeChapter?.subjectId);
 
@@ -66,7 +83,7 @@ export function ContentStudioPage({
   const [mcqExplanation, setMcqExplanation] = useState('');
 
   useEffect(() => {
-    const found = dataset.contents.find((c) => c.chapterId === selectedChapterId);
+    const found = selectPreferredChapterContent(dataset.contents, selectedChapterId);
     setBlocks(found?.blocks ?? []);
     setLatestContentId(found?.id);
     setSaveMessage(null);
@@ -311,6 +328,22 @@ export function ContentStudioPage({
       setSaveMessage({
         type: 'error',
         text: err instanceof Error ? err.message : 'Failed to create MCQ.',
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDeleteMcqItem = async (mcqId: string) => {
+    if (!onDeleteMcq) return;
+    setBusy(true);
+    try {
+      await onDeleteMcq(mcqId);
+      setSaveMessage({ type: 'success', text: 'MCQ removed from chapter bank.' });
+    } catch (err) {
+      setSaveMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Failed to delete MCQ.',
       });
     } finally {
       setBusy(false);
@@ -738,9 +771,10 @@ export function ContentStudioPage({
                       {onDeleteMcq && (
                         <button
                           type="button"
+                          disabled={busy}
                           aria-label={`Delete MCQ ${m.id}`}
-                          onClick={() => void onDeleteMcq(m.id)}
-                          className="p-1 text-[#64748B] hover:text-[#DC2626] dark:text-[#8FA7D1] dark:hover:text-[#F87171]"
+                          onClick={() => void handleDeleteMcqItem(m.id)}
+                          className="p-1 text-[#64748B] hover:text-[#DC2626] dark:text-[#8FA7D1] dark:hover:text-[#F87171] disabled:opacity-50"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>

@@ -24,7 +24,7 @@ export function FeedbackTriagePage({
   const [search, setSearch] = useState('');
   const [notesById, setNotesById] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const filtered = useMemo(() => {
     return reports.filter((r) => {
@@ -46,7 +46,12 @@ export function FeedbackTriagePage({
     try {
       const note = notesById[report.id] ?? report.adminResolutionNote ?? '';
       await onTriageFeedback(report.id, nextStatus, note);
-      setNotice(`Report "${report.title}" marked as ${nextStatus}.`);
+      setNotice({ type: 'success', text: `Report "${report.title}" marked as ${nextStatus}.` });
+    } catch (err) {
+      setNotice({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Failed to update feedback report.',
+      });
     } finally {
       setBusyId(null);
     }
@@ -96,11 +101,15 @@ export function FeedbackTriagePage({
 
       {notice && (
         <div
-          role="status"
-          className="rounded-xl border border-[#16A34A]/40 bg-[#F0FDF4] px-4 py-3 text-xs font-medium text-[#166534] dark:border-[#22C55E]/40 dark:bg-[#14532D]/30 dark:text-[#BBF7D0] flex items-center gap-2"
+          role={notice.type === 'error' ? 'alert' : 'status'}
+          className={`rounded-xl border px-4 py-3 text-xs font-medium flex items-center gap-2 ${
+            notice.type === 'success'
+              ? 'border-[#16A34A]/40 bg-[#F0FDF4] text-[#166534] dark:border-[#22C55E]/40 dark:bg-[#14532D]/30 dark:text-[#BBF7D0]'
+              : 'border-[#DC2626]/40 bg-[#FEF2F2] text-[#991B1B] dark:border-[#EF4444]/40 dark:bg-[#450A0A]/40 dark:text-[#FECACA]'
+          }`}
         >
           <CheckCircle2 className="h-4 w-4 shrink-0" />
-          <span>{notice}</span>
+          <span>{notice.text}</span>
         </div>
       )}
 

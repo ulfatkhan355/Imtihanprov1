@@ -310,7 +310,7 @@ export async function handleStudentAuthAndSyncRoutes(
           )
         );
 
-        // Reassign quiz submissions, study tasks, and exam sessions
+        // Reassign quiz submissions, study tasks, exam sessions, and feedback reports
         mergeStatements.push(
           env.DB.prepare('UPDATE quiz_submissions SET student_id = ? WHERE student_id = ?').bind(
             studentId,
@@ -321,6 +321,10 @@ export async function handleStudentAuthAndSyncRoutes(
             byGuest.id
           ),
           env.DB.prepare('UPDATE exam_sessions SET student_id = ? WHERE student_id = ?').bind(
+            studentId,
+            byGuest.id
+          ),
+          env.DB.prepare('UPDATE feedback_reports SET student_id = ? WHERE student_id = ?').bind(
             studentId,
             byGuest.id
           )
@@ -375,9 +379,9 @@ export async function handleStudentAuthAndSyncRoutes(
           );
         }
 
-        // Merge bookmarks cleanly
+        // Merge bookmarks cleanly (table uses 'subtitle', not 'note')
         const guestBookmarks = await env.DB.prepare(
-          'SELECT * FROM student_bookmarks WHERE student_id = ?'
+          'SELECT item_type, item_id, chapter_id, subject_id, title, subtitle, created_at_iso FROM student_bookmarks WHERE student_id = ?'
         )
           .bind(byGuest.id)
           .all<{
@@ -386,14 +390,14 @@ export async function handleStudentAuthAndSyncRoutes(
             chapter_id: string | null;
             subject_id: string | null;
             title: string;
-            note: string;
+            subtitle: string;
             created_at_iso: string;
           }>();
         for (const gb of guestBookmarks.results) {
           mergeStatements.push(
             env.DB.prepare(
               `INSERT OR IGNORE INTO student_bookmarks (
-                id, student_id, item_type, item_id, chapter_id, subject_id, title, note, created_at_iso
+                id, student_id, item_type, item_id, chapter_id, subject_id, title, subtitle, created_at_iso
               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
             ).bind(
               `bm_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`,
@@ -403,15 +407,15 @@ export async function handleStudentAuthAndSyncRoutes(
               gb.chapter_id,
               gb.subject_id,
               gb.title,
-              gb.note,
+              gb.subtitle ?? '',
               gb.created_at_iso
             )
           );
         }
 
-        // Merge flashcard spaced-repetition state
+        // Merge flashcard spaced-repetition state (columns: interval_days, ease_factor, repetitions, next_review_at_iso, last_reviewed_at_iso)
         const guestReviews = await env.DB.prepare(
-          'SELECT * FROM student_flashcard_reviews WHERE student_id = ?'
+          'SELECT flashcard_id, ease_factor, interval_days, repetitions, next_review_at_iso, last_reviewed_at_iso FROM student_flashcard_reviews WHERE student_id = ?'
         )
           .bind(byGuest.id)
           .all<{
@@ -419,32 +423,29 @@ export async function handleStudentAuthAndSyncRoutes(
             ease_factor: number;
             interval_days: number;
             repetitions: number;
-            last_quality: number;
             next_review_at_iso: string;
-            updated_at_iso: string;
+            last_reviewed_at_iso: string;
           }>();
         for (const gr of guestReviews.results) {
           mergeStatements.push(
             env.DB.prepare(
               `INSERT INTO student_flashcard_reviews (
-                student_id, flashcard_id, ease_factor, interval_days, repetitions, last_quality, next_review_at_iso, updated_at_iso
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                student_id, flashcard_id, ease_factor, interval_days, repetitions, next_review_at_iso, last_reviewed_at_iso
+              ) VALUES (?, ?, ?, ?, ?, ?, ?)
               ON CONFLICT(student_id, flashcard_id) DO UPDATE SET
                 repetitions = MAX(repetitions, excluded.repetitions),
                 interval_days = MAX(interval_days, excluded.interval_days),
                 ease_factor = excluded.ease_factor,
-                last_quality = excluded.last_quality,
                 next_review_at_iso = excluded.next_review_at_iso,
-                updated_at_iso = MAX(updated_at_iso, excluded.updated_at_iso)`
+                last_reviewed_at_iso = MAX(last_reviewed_at_iso, excluded.last_reviewed_at_iso)`
             ).bind(
               studentId,
               gr.flashcard_id,
               gr.ease_factor,
               gr.interval_days,
               gr.repetitions,
-              gr.last_quality,
               gr.next_review_at_iso,
-              gr.updated_at_iso
+              gr.last_reviewed_at_iso
             )
           );
         }
@@ -495,6 +496,29 @@ export async function handleStudentAuthAndSyncRoutes(
             ).bind(guestXp, guestHours, guestDiag, studentId)
           );
         }
+
+        // Clear merged child rows from temporary guest account & retire its guest_device_id so replay cannot duplicate XP/hours
+        mergeStatements.push(
+          env.DB.prepare('DELETE FROM student_chapter_progress WHERE student_id = ?').bind(byGuest.id),
+          env.DB.prepare('DELETE FROM student_mistakes WHERE student_id = ?').bind(byGuest.id),
+          env.DB.prepare('DELETE FROM student_bookmarks WHERE student_id = ?').bind(byGuest.id),
+          env.DB.prepare('DELETE FROM student_flashcard_reviews WHERE student_id = ?').bind(byGuest.id),
+          env.DB.prepare('DELETE FROM student_activity_days WHERE student_id = ?').bind(byGuest.id),
+          env.DB.prepare('DELETE FROM student_achievements WHERE student_id = ?').bind(byGuest.id),
+          env.DB.prepare(
+            `UPDATE students SET
+              xp_total = 0,
+              study_hours_total = 0,
+              diagnostic_completed = 0,
+              guest_device_id = ?,
+              updated_at_iso = ?
+             WHERE id = ?`
+          ).bind(`merged_${byGuest.id}`, nowIso, byGuest.id),
+          env.DB.prepare('UPDATE students SET guest_device_id = ? WHERE id = ?').bind(
+            deviceId,
+            studentId
+          )
+        );
 
         if (mergeStatements.length > 0) {
           await env.DB.batch(mergeStatements);

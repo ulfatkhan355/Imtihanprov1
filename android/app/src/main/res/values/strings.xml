@@ -1,4 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Imtihan Pro</string>
+
+    <!-- Download notification channel & group -->
+    <string name="dl_notif_channel_name">PDF Downloads</string>
+    <string name="dl_notif_channel_desc">Shows download progress, pause/resume controls, and offline completion alerts for textbooks and past papers.</string>
+    <string name="dl_notif_group_summary">Offline PDF downloads</string>
+
+    <!-- Download states (English) -->
+    <string name="dl_state_queued">Queued</string>
+    <string name="dl_state_downloading">Downloading</string>
+    <string name="dl_state_paused">Paused</string>
+    <string name="dl_state_waiting_wifi">Paused — Waiting for Wi-Fi</string>
+    <string name="dl_state_waiting_network">Paused — Waiting for network</string>
+    <string name="dl_state_retry_backoff">Waiting to retry</string>
+    <string name="dl_state_verifying">Verifying PDF integrity…</string>
+    <string name="dl_state_completed">Ready Offline</string>
+    <string name="dl_state_failed">Download Failed</string>
+    <string name="dl_state_corrupt">Corrupt file</string>
+    <string name="dl_state_cancelled">Cancelled</string>
+
+    <!-- Download actions & prompts -->
+    <string name="dl_action_pause">Pause</string>
+    <string name="dl_action_resume">Resume</string>
+    <string name="dl_action_cancel">Cancel</string>
+    <string name="dl_action_retry">Retry</string>
+    <string name="dl_action_retry_all">Retry All</string>
+    <string name="dl_action_open">Open PDF</string>
+    <string name="dl_action_mobile_data">Download on mobile data</string>
+    <string name="dl_completed_notif_text">Saved offline — tap to open in textbook reader</string>
+    <string name="dl_error_low_storage">Not enough free storage space to download this PDF.</string>
+    <string name="dl_error_wifi_required">File is over 5 MB. Waiting for Wi-Fi, or tap Download on mobile data.</string>
+    <string name="dl_error_corrupt_deleted">Downloaded file was corrupted and removed. Tap Retry to download cleanly.</string>
+    <string name="dl_notif_permission_title">Show download progress notifications?</string>
+    <string name="dl_notif_permission_body">Allow notifications so Imtihan Pro can show live PDF progress, pause/resume buttons, and completion alerts on slow networks.</string>
+    <string name="dl_notif_permission_allow">Allow</string>
+    <string name="dl_notif_permission_not_now">Not now</string>
 </resources>

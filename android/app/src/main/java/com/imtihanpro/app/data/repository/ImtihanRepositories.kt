@@ -8,6 +8,7 @@ import com.imtihanpro.app.data.local.room.CachedChapterMetaEntity
 import com.imtihanpro.app.data.local.room.CachedMcqEntity
 import com.imtihanpro.app.data.local.room.CachedPastPaperEntity
 import com.imtihanpro.app.data.local.room.CachedSubjectEntity
+import com.imtihanpro.app.data.local.room.DownloadTaskEntity
 import com.imtihanpro.app.data.local.room.DownloadedPdfEntity
 import com.imtihanpro.app.data.local.room.FlashcardReviewEntity
 import com.imtihanpro.app.data.local.room.GuestProgressEntity
@@ -23,17 +24,23 @@ import com.imtihanpro.app.data.local.room.StudyActivityDayEntity
 import com.imtihanpro.app.data.local.room.StudyPlanTaskEntity
 import com.imtihanpro.app.data.mapper.CurriculumMappers
 import com.imtihanpro.app.data.remote.ApiChapterProgressSyncDto
+import com.imtihanpro.app.data.remote.ApiConfig
 import com.imtihanpro.app.data.remote.ApiContentJsonParser
 import com.imtihanpro.app.data.remote.ApiResult
 import com.imtihanpro.app.data.remote.ImtihanApiClient
 import com.imtihanpro.app.data.remote.ImtihanSyncRules
+import com.imtihanpro.app.data.sync.PdfDownloadNotifications
 import com.imtihanpro.app.data.sync.SyncScheduler
+import com.imtihanpro.app.domain.engine.DownloadPausedReason
+import com.imtihanpro.app.domain.engine.DownloadState
+import com.imtihanpro.app.domain.engine.PdfDownloadEngine
 import com.imtihanpro.app.domain.engine.Stage3To8Engines
 import com.imtihanpro.app.domain.model.AchievementUi
 import com.imtihanpro.app.domain.model.AdPlacementPolicyUi
 import com.imtihanpro.app.domain.model.ChallengeUi
 import com.imtihanpro.app.domain.model.ChapterUiModel
 import com.imtihanpro.app.domain.model.ContentBlockUi
+import com.imtihanpro.app.domain.model.DownloadTaskUi
 import com.imtihanpro.app.domain.model.DownloadedFileUi
 import com.imtihanpro.app.domain.model.ExamPatternUi
 import com.imtihanpro.app.domain.model.FlashcardUi
@@ -190,6 +197,23 @@ interface CurriculumRepository {
     ): Result<String> = Result.failure(IllegalStateException("PDF streaming requires runtime context."))
 
     suspend fun findLocalPdfPath(paperId: String, pdfMetadataId: String): String? = null
+    fun observeDownloadTasks(): Flow<List<DownloadTaskUi>> = flowOf(emptyList())
+    suspend fun enqueuePdfDownload(
+        paperId: String,
+        pdfId: String,
+        title: String,
+        categoryLabel: String = "PDF Document",
+        sizeMb: Double = 0.0,
+        expectedSha256: String? = null,
+        allowMobileData: Boolean = false
+    ) {}
+    suspend fun pausePdfDownload(pdfId: String) {}
+    suspend fun resumePdfDownload(pdfId: String) {}
+    suspend fun cancelPdfDownload(pdfId: String) {}
+    suspend fun retryPdfDownload(pdfId: String) {}
+    suspend fun retryAllFailedDownloads() {}
+    suspend fun downloadOnMobileData(pdfId: String) {}
+    suspend fun recoverDownloadQueueOnStartup() {}
     fun observePdfBookmarks(pdfId: String): Flow<List<PdfBookmarkUi>> = flowOf(emptyList())
     suspend fun togglePdfBookmark(pdfId: String, pageNumber: Int, label: String) {}
     fun observePdfAnnotations(pdfId: String): Flow<List<PdfAnnotationUi>> = flowOf(emptyList())
@@ -468,6 +492,8 @@ class OfflineFirstCurriculumRepository(
     private val preferencesDataStore: UserPreferencesDataStore,
     private val apiClient: ImtihanApiClient = ImtihanApiClient()
 ) : CurriculumRepository {
+
+    private val downloadTaskDao = database.downloadTaskDao()
 
     private val cacheDao = database.curriculumCacheDao()
     private val offlineDao = database.offlineContentDao()
@@ -1002,35 +1028,310 @@ class OfflineFirstCurriculumRepository(
         )
     }
 
+    override fun observeDownloadTasks(): Flow<List<DownloadTaskUi>> {
+        return downloadTaskDao.observeAll().map { rows ->
+            rows.map { row ->
+                val state = DownloadState.fromRaw(row.state)
+                val reason = DownloadPausedReason.fromRaw(row.pausedReason)
+                DownloadTaskUi(
+                    pdfId = row.pdfId,
+                    paperId = row.paperId,
+                    title = row.title,
+                    categoryLabel = row.categoryLabel,
+                    state = state,
+                    pausedReason = reason,
+                    bytesDownloaded = row.bytesDownloaded,
+                    totalBytes = row.totalBytes,
+                    progressPercent = PdfDownloadEngine.computeProgressPercent(row.bytesDownloaded, row.totalBytes),
+                    speedBytesPerSec = row.speedBytesPerSec,
+                    errorCode = row.errorCode,
+                    errorMessage = row.errorMessage,
+                    localPath = row.localPath,
+                    allowMobileData = row.allowMobileData,
+                    updatedAtEpochMs = row.updatedAtEpochMs
+                )
+            }
+        }
+    }
+
     override suspend fun toggleOfflinePaper(paperId: String, title: String, sizeMb: Double) {
         val existing = offlineDao.getDownloadedPdfOnce(paperId)
-        if (existing != null) {
-            File(existing.localFilePath).delete()
+        val existingTask = downloadTaskDao.getByIdOnce(paperId)
+        if (existing != null || existingTask?.state == DownloadState.COMPLETED.name) {
+            existing?.localFilePath?.let { File(it).delete() }
+            existingTask?.localPath?.let { File(it).delete() }
+            existingTask?.tmpPath?.takeIf { it.isNotBlank() }?.let { File(it).delete() }
             offlineDao.removeDownloadedPdf(paperId)
+            downloadTaskDao.deleteById(paperId)
+            PdfDownloadNotifications.cancelNotification(context, paperId)
             return
         }
-        getOrDownloadPdfFile(paperId, paperId, title, sizeMb)
+        if (existingTask != null && (existingTask.state == DownloadState.RUNNING.name || existingTask.state == DownloadState.QUEUED.name)) {
+            pausePdfDownload(paperId)
+            return
+        }
+        enqueuePdfDownload(
+            paperId = paperId,
+            pdfId = paperId,
+            title = title,
+            categoryLabel = "Past Paper / PDF",
+            sizeMb = sizeMb
+        )
+    }
+
+    override suspend fun enqueuePdfDownload(
+        paperId: String,
+        pdfId: String,
+        title: String,
+        categoryLabel: String,
+        sizeMb: Double,
+        expectedSha256: String?,
+        allowMobileData: Boolean
+    ) {
+        val targetPdfId = pdfId.ifBlank { paperId }
+        val alreadyLocal = findLocalPdfPath(paperId, targetPdfId)
+        val now = System.currentTimeMillis()
+        if (alreadyLocal != null) {
+            val fileLen = File(alreadyLocal).length()
+            val resolvedMb = if (sizeMb > 0.0) sizeMb else maxOf(0.1, fileLen / (1024.0 * 1024.0))
+            offlineDao.upsertDownloadedPdf(
+                DownloadedPdfEntity(
+                    pdfId = targetPdfId,
+                    title = title,
+                    categoryLabel = categoryLabel,
+                    localFilePath = alreadyLocal,
+                    sizeMb = resolvedMb,
+                    downloadedAtEpochMs = now
+                )
+            )
+            val existingTask = downloadTaskDao.getByIdOnce(targetPdfId)
+            if (existingTask == null || existingTask.state != DownloadState.COMPLETED.name) {
+                downloadTaskDao.upsert(
+                    DownloadTaskEntity(
+                        pdfId = targetPdfId,
+                        paperId = paperId,
+                        title = title,
+                        categoryLabel = categoryLabel,
+                        remoteUrl = "",
+                        state = DownloadState.COMPLETED.name,
+                        pausedReason = DownloadPausedReason.NONE.name,
+                        bytesDownloaded = fileLen,
+                        totalBytes = fileLen,
+                        localPath = alreadyLocal,
+                        createdAtEpochMs = existingTask?.createdAtEpochMs ?: now,
+                        updatedAtEpochMs = now
+                    )
+                )
+            }
+            return
+        }
+
+        val prefs = preferencesDataStore.preferencesFlow.first()
+        val seedMeta = MockSeedDataSource.pdfLibrary.firstOrNull { it.id == targetPdfId }
+        val resolvedSha = expectedSha256?.takeIf { PdfDownloadEngine.isValidSha256Hex(it) }
+            ?: seedMeta?.checksumSha256?.takeIf { PdfDownloadEngine.isValidSha256Hex(it) }
+        val totalBytesHint = when {
+            sizeMb > 0.0 -> (sizeMb * 1024.0 * 1024.0).toLong()
+            seedMeta != null && seedMeta.fileSizeBytes > 0L -> seedMeta.fileSizeBytes
+            else -> 0L
+        }
+
+        val pdfDir = File(context.filesDir, "imtihan_pdfs").apply { mkdirs() }
+        val safeName = targetPdfId.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        val targetFile = File(pdfDir, "$safeName.pdf")
+        val tmpFile = File(pdfDir, "${targetFile.name}.tmp")
+        val partialBytes = if (tmpFile.exists() && tmpFile.length() > 0L) tmpFile.length() else 0L
+        val remoteUrl = "${ApiConfig.normalizeBaseUrl(prefs.configuredApiBaseUrl)}/pdfs/$targetPdfId/download?mode=stream"
+
+        val existing = downloadTaskDao.getByIdOnce(targetPdfId)
+        val allowMobile = allowMobileData || (existing?.allowMobileData == true) || prefs.allowDownloadOverMobileData
+
+        SyncScheduler.clearInterrupted(targetPdfId)
+        PdfDownloadNotifications.cancelNotification(context, targetPdfId)
+
+        val initialState: String
+        val initialReason: String
+        val initialErrorCode: String?
+        val initialErrorMsg: String?
+        if (prefs.offlineOnlyMode) {
+            initialState = DownloadState.PAUSED.name
+            initialReason = DownloadPausedReason.WAITING_NETWORK.name
+            initialErrorCode = "OFFLINE_MODE"
+            initialErrorMsg = "Offline Mode is enabled. Disable it in Profile to download."
+        } else {
+            initialState = DownloadState.QUEUED.name
+            initialReason = DownloadPausedReason.NONE.name
+            initialErrorCode = null
+            initialErrorMsg = null
+        }
+
+        downloadTaskDao.upsert(
+            DownloadTaskEntity(
+                pdfId = targetPdfId,
+                paperId = paperId,
+                title = title,
+                categoryLabel = categoryLabel,
+                remoteUrl = remoteUrl,
+                state = initialState,
+                pausedReason = initialReason,
+                bytesDownloaded = partialBytes,
+                totalBytes = maxOf(totalBytesHint, existing?.totalBytes ?: 0L),
+                speedBytesPerSec = 0L,
+                etag = existing?.etag,
+                expectedSha256 = resolvedSha ?: existing?.expectedSha256,
+                retryCount = 0,
+                nextRetryAtMs = 0L,
+                errorCode = initialErrorCode,
+                errorMessage = initialErrorMsg,
+                localPath = null,
+                tmpPath = tmpFile.absolutePath,
+                allowMobileData = allowMobile,
+                createdAtEpochMs = existing?.createdAtEpochMs ?: now,
+                updatedAtEpochMs = now
+            )
+        )
+
+        if (!prefs.offlineOnlyMode) {
+            SyncScheduler.enqueueSerialDownloadQueue(context, replaceIfIdle = false)
+        }
+    }
+
+    override suspend fun pausePdfDownload(pdfId: String) {
+        SyncScheduler.markInterrupted(pdfId)
+        val existing = downloadTaskDao.getByIdOnce(pdfId) ?: return
+        downloadTaskDao.updateState(
+            pdfId = pdfId,
+            state = DownloadState.PAUSED.name,
+            pausedReason = DownloadPausedReason.USER.name,
+            errorCode = null,
+            errorMessage = null,
+            updatedAt = System.currentTimeMillis()
+        )
+        PdfDownloadNotifications.showPausedNotification(
+            context = context,
+            pdfId = pdfId,
+            title = existing.title,
+            bytesDownloaded = existing.bytesDownloaded,
+            totalBytes = existing.totalBytes,
+            reason = DownloadPausedReason.USER
+        )
+    }
+
+    override suspend fun resumePdfDownload(pdfId: String) {
+        SyncScheduler.clearInterrupted(pdfId)
+        PdfDownloadNotifications.cancelNotification(context, pdfId)
+        val existing = downloadTaskDao.getByIdOnce(pdfId) ?: return
+        downloadTaskDao.upsert(
+            existing.copy(
+                state = DownloadState.QUEUED.name,
+                pausedReason = DownloadPausedReason.NONE.name,
+                retryCount = 0,
+                nextRetryAtMs = 0L,
+                errorCode = null,
+                errorMessage = null,
+                updatedAtEpochMs = System.currentTimeMillis()
+            )
+        )
+        SyncScheduler.enqueueSerialDownloadQueue(context, replaceIfIdle = false)
+    }
+
+    override suspend fun retryPdfDownload(pdfId: String) {
+        resumePdfDownload(pdfId)
+    }
+
+    override suspend fun retryAllFailedDownloads() {
+        val failed = downloadTaskDao.getFailedOnce()
+        if (failed.isEmpty()) return
+        val now = System.currentTimeMillis()
+        for (task in failed) {
+            SyncScheduler.clearInterrupted(task.pdfId)
+            PdfDownloadNotifications.cancelNotification(context, task.pdfId)
+            downloadTaskDao.upsert(
+                task.copy(
+                    state = DownloadState.QUEUED.name,
+                    pausedReason = DownloadPausedReason.NONE.name,
+                    retryCount = 0,
+                    nextRetryAtMs = 0L,
+                    errorCode = null,
+                    errorMessage = null,
+                    updatedAtEpochMs = now
+                )
+            )
+        }
+        SyncScheduler.enqueueSerialDownloadQueue(context, replaceIfIdle = false)
+    }
+
+    override suspend fun downloadOnMobileData(pdfId: String) {
+        SyncScheduler.clearInterrupted(pdfId)
+        PdfDownloadNotifications.cancelNotification(context, pdfId)
+        downloadTaskDao.allowMobileDataAndQueue(pdfId, true, System.currentTimeMillis())
+        SyncScheduler.enqueueSerialDownloadQueue(context, replaceIfIdle = false)
+    }
+
+    override suspend fun cancelPdfDownload(pdfId: String) {
+        SyncScheduler.markInterrupted(pdfId)
+        PdfDownloadNotifications.cancelNotification(context, pdfId)
+        val existing = downloadTaskDao.getByIdOnce(pdfId)
+        if (existing != null) {
+            downloadTaskDao.updateState(
+                pdfId = pdfId,
+                state = DownloadState.CANCELLED.name,
+                pausedReason = DownloadPausedReason.NONE.name,
+                errorCode = null,
+                errorMessage = null,
+                updatedAt = System.currentTimeMillis()
+            )
+            if (existing.tmpPath.isNotBlank()) File(existing.tmpPath).delete()
+            existing.localPath?.let { File(it).delete() }
+            downloadTaskDao.deleteById(pdfId)
+        }
+        offlineDao.removeDownloadedPdf(pdfId)
+    }
+
+    override suspend fun recoverDownloadQueueOnStartup() {
+        SyncScheduler.registerConnectivityMonitor(context)
+        SyncScheduler.recoverAndResumeQueueOnStartup(context)
     }
 
     override suspend fun clearAllDownloads() {
+        val allTasks = downloadTaskDao.observeAll().first()
+        allTasks.forEach { t ->
+            SyncScheduler.markInterrupted(t.pdfId)
+            PdfDownloadNotifications.cancelNotification(context, t.pdfId)
+            if (t.tmpPath.isNotBlank()) File(t.tmpPath).delete()
+            t.localPath?.let { File(it).delete() }
+        }
+        downloadTaskDao.deleteAll()
         val all = offlineDao.observeDownloadedPdfs().first()
         all.forEach { File(it.localFilePath).delete() }
         offlineDao.clearAllDownloads()
+        File(context.filesDir, "imtihan_pdfs").deleteRecursively()
+        File(context.filesDir, "pdfs").deleteRecursively()
     }
 
     override suspend fun findLocalPdfPath(paperId: String, pdfMetadataId: String): String? {
         val candidates = listOfNotNull(
             pdfMetadataId.takeIf { it.isNotBlank() },
             paperId.takeIf { it.isNotBlank() }
-        )
+        ).distinct()
         for (id in candidates) {
+            val task = downloadTaskDao.getByIdOnce(id)
+            if (task != null && task.state == DownloadState.COMPLETED.name && !task.localPath.isNullOrBlank()) {
+                val f = File(task.localPath)
+                if (f.exists() && f.length() > 8L) return f.absolutePath
+            }
             val row = offlineDao.getDownloadedPdfOnce(id)
-            if (row != null && File(row.localFilePath).exists()) {
+            if (row != null && File(row.localFilePath).exists() && File(row.localFilePath).length() > 8L) {
                 return row.localFilePath
             }
-            val directFile = File(File(context.filesDir, "pdfs"), "$id.pdf")
-            if (directFile.exists() && directFile.length() > 8L) {
-                return directFile.absolutePath
+            val safeName = id.replace(Regex("[^A-Za-z0-9._-]"), "_")
+            val unifiedFile = File(File(context.filesDir, "imtihan_pdfs"), "$safeName.pdf")
+            if (unifiedFile.exists() && unifiedFile.length() > 8L) {
+                return unifiedFile.absolutePath
+            }
+            val legacyFile = File(File(context.filesDir, "pdfs"), "$id.pdf")
+            if (legacyFile.exists() && legacyFile.length() > 8L) {
+                return legacyFile.absolutePath
             }
         }
         return null
@@ -1044,32 +1345,14 @@ class OfflineFirstCurriculumRepository(
     ): Result<String> {
         val existing = findLocalPdfPath(paperId, pdfMetadataId)
         if (existing != null) return Result.success(existing)
-
-        val prefs = preferencesDataStore.preferencesFlow.first()
-        if (prefs.offlineOnlyMode) {
-            return Result.failure(IllegalStateException("Offline Mode is enabled. Turn it off in Profile to download this PDF."))
-        }
-
-        val targetPdfId = pdfMetadataId.ifBlank { paperId }
-        val expectedSha = MockSeedDataSource.pdfLibrary.firstOrNull { it.id == targetPdfId }?.checksumSha256
-        val targetFile = File(File(context.filesDir, "pdfs"), "$targetPdfId.pdf")
-        return when (val res = apiClient.downloadPdfToFile(prefs.configuredApiBaseUrl, targetPdfId, targetFile, expectedSha)) {
-            is ApiResult.Success -> {
-                val actualMb = maxOf(0.1, res.data.length() / (1024.0 * 1024.0))
-                offlineDao.upsertDownloadedPdf(
-                    DownloadedPdfEntity(
-                        pdfId = targetPdfId,
-                        title = title,
-                        categoryLabel = "PDF Document",
-                        localFilePath = res.data.absolutePath,
-                        sizeMb = if (sizeMb > 0) sizeMb else actualMb,
-                        downloadedAtEpochMs = System.currentTimeMillis()
-                    )
-                )
-                Result.success(res.data.absolutePath)
-            }
-            is ApiResult.Failure -> Result.failure(IllegalStateException(res.message))
-        }
+        enqueuePdfDownload(
+            paperId = paperId,
+            pdfId = pdfMetadataId.ifBlank { paperId },
+            title = title,
+            categoryLabel = "PDF Document",
+            sizeMb = sizeMb
+        )
+        return Result.failure(IllegalStateException("Queued PDF download in background worker."))
     }
 
     override suspend fun initGuestOrGoogleSession(googleIdToken: String?): Result<String> {
@@ -2116,7 +2399,8 @@ class OfflineFirstCurriculumRepository(
         if (!prefs.offlineOnlyMode) {
             apiClient.createStudyPlanTask(
                 prefs.configuredApiBaseUrl, prefs.guestDeviceId, prefs.authToken,
-                title.trim(), subjectId, chapterId, dateStr, estimatedMinutes, taskType
+                title.trim(), subjectId, chapterId, dateStr, estimatedMinutes, taskType,
+                id = id
             )
         }
     }
@@ -2129,7 +2413,7 @@ class OfflineFirstCurriculumRepository(
                 completedAtIso = if (completed) nowIsoUtc() else null
             )
         )
-        if (completed) {
+        if (completed && !current.completed) {
             recordActivityDelta(minutesDelta = current.estimatedMinutes, quizzesDelta = 0, chaptersDelta = 0)
         }
         val prefs = preferencesDataStore.preferencesFlow.first()
@@ -2140,6 +2424,10 @@ class OfflineFirstCurriculumRepository(
 
     override suspend fun deleteStudyPlanTask(taskId: String) {
         plannerDao.deleteTask(taskId)
+        val prefs = preferencesDataStore.preferencesFlow.first()
+        if (!prefs.offlineOnlyMode) {
+            apiClient.deleteStudyPlanTask(prefs.configuredApiBaseUrl, prefs.guestDeviceId, prefs.authToken, taskId)
+        }
     }
 
     override suspend fun updateStudyGoalPreferences(
@@ -2148,6 +2436,16 @@ class OfflineFirstCurriculumRepository(
         reminderHourLocal: Int
     ) {
         preferencesDataStore.setStudyGoalPreferences(dailyTargetMinutes, examCountdownDateIso, reminderHourLocal)
+        val prefs = preferencesDataStore.preferencesFlow.first()
+        if (!prefs.offlineOnlyMode) {
+            apiClient.updatePlannerGoals(
+                prefs.configuredApiBaseUrl,
+                prefs.guestDeviceId,
+                prefs.authToken,
+                dailyTargetMinutes,
+                examCountdownDateIso
+            )
+        }
     }
 
     override fun observeMotivationSummary(classLevel: Int, boardCode: String): Flow<MotivationSummaryUi> = flow {
@@ -2158,6 +2456,7 @@ class OfflineFirstCurriculumRepository(
                 is ApiResult.Failure -> null
             }
         } else null
+        var baselineLocalXp: Int? = null
 
         combine(
             quizAttemptDao.observeQuizHistory(),
@@ -2166,61 +2465,79 @@ class OfflineFirstCurriculumRepository(
             activityDao.observeRecentActivity(),
             preferencesDataStore.preferencesFlow
         ) { quizzes, allMistakes, flashcards, activity, curPrefs ->
-            if (remoteSummary != null) {
-                MotivationSummaryUi(
-                    xpTotal = remoteSummary.xpTotal,
-                    level = remoteSummary.level,
-                    nextLevelXp = remoteSummary.nextLevelXp,
-                    currentStreakDays = remoteSummary.currentStreakDays,
-                    leaderboardOptIn = curPrefs.leaderboardOptIn,
-                    aliasHandle = curPrefs.leaderboardAlias ?: remoteSummary.aliasHandle,
-                    achievements = remoteSummary.achievements.map {
-                        AchievementUi(it.code, it.title, it.description, it.xpReward, it.unlocked)
-                    },
-                    challenges = remoteSummary.challenges.map {
-                        ChallengeUi(it.id, it.title, it.description, it.cadence, it.targetCount, it.currentCount, it.xpReward, it.completed)
-                    },
-                    leaderboard = if (curPrefs.leaderboardOptIn) {
-                        remoteSummary.leaderboard.map {
-                            LeaderboardEntryUi(it.rank, it.aliasHandle, it.boardCode, it.classLevel, it.xpTotal, it.streakDays, it.isCurrentUser)
-                        }
-                    } else emptyList()
-                )
-            } else {
-                val (streak, _) = Stage3To8Engines.computeStudyStreak(activity.map { it.dayYmd })
-                val reviewedCards = flashcards.count { it.lastReviewedEpochMs != null }
-                val resolvedMistakes = allMistakes.count { it.mastered }
-                val xp = quizzes.sumOf { maxOf(5, it.correctCount * 10) } + reviewedCards * 5 + resolvedMistakes * 15
-                val level = (xp / 150) + 1
-                val todayQuizzes = activity.firstOrNull { it.dayYmd == todayYmdUtc() }?.quizzesCompleted ?: 0
-                val weeklyQuizzes = activity.take(7).sumOf { it.quizzesCompleted }
-                val alias = curPrefs.leaderboardAlias ?: Stage3To8Engines.anonymizeLeaderboardHandle(curPrefs.displayName, curPrefs.guestDeviceId)
-
-                MotivationSummaryUi(
-                    xpTotal = xp,
-                    level = level,
-                    nextLevelXp = level * 150,
-                    currentStreakDays = streak,
-                    leaderboardOptIn = curPrefs.leaderboardOptIn,
-                    aliasHandle = alias,
-                    achievements = listOf(
-                        AchievementUi("first_quiz", "First Practice Attempt", "Submitted your first practice quiz.", 25, quizzes.isNotEmpty()),
-                        AchievementUi("perfect_score", "100% Concept Mastery", "Scored 100% on a quiz with 3+ questions.", 50, quizzes.any { it.totalQuestions >= 3 && it.percentage == 100 }),
-                        AchievementUi("flashcard_reviewer", "Spaced Repetition Starter", "Reviewed flashcards using SM-2 memory scheduling.", 20, reviewedCards > 0),
-                        AchievementUi("mistake_conqueror", "Mistake Master", "Resolved a missed question in Mistake Master.", 30, resolvedMistakes > 0),
-                        AchievementUi("streak_3", "3-Day Study Streak", "Studied on 3 consecutive days.", 40, streak >= 3)
-                    ),
-                    challenges = listOf(
-                        ChallengeUi("chg_daily_quiz", "Daily Practice Sprint", "Complete at least 1 quiz today.", "daily", 1, minOf(1, todayQuizzes), 25, todayQuizzes >= 1),
-                        ChallengeUi("chg_weekly_5", "Weekly KPK Board Marathon", "Complete 5 quizzes this week.", "weekly", 5, minOf(5, weeklyQuizzes), 100, weeklyQuizzes >= 5)
-                    ),
-                    leaderboard = if (curPrefs.leaderboardOptIn) {
-                        listOf(
-                            LeaderboardEntryUi(1, alias, boardCode, classLevel, xp, streak, isCurrentUser = true)
-                        )
-                    } else emptyList()
-                )
+            val (localStreak, _) = Stage3To8Engines.computeStudyStreak(activity.map { it.dayYmd })
+            val reviewedCards = flashcards.count { it.lastReviewedEpochMs != null }
+            val resolvedMistakes = allMistakes.count { it.mastered }
+            val localXp = quizzes.sumOf { maxOf(5, it.correctCount * 10) } + reviewedCards * 5 + resolvedMistakes * 15
+            if (baselineLocalXp == null) {
+                baselineLocalXp = localXp
             }
+            val localDeltaSinceFetch = maxOf(0, localXp - (baselineLocalXp ?: localXp))
+            val effectiveXp = if (remoteSummary != null) {
+                maxOf(localXp, remoteSummary.xpTotal + localDeltaSinceFetch)
+            } else {
+                localXp
+            }
+            val effectiveLevel = (effectiveXp / 150) + 1
+            val effectiveStreak = maxOf(localStreak, remoteSummary?.currentStreakDays ?: 0)
+            val todayQuizzes = activity.firstOrNull { it.dayYmd == todayYmdUtc() }?.quizzesCompleted ?: 0
+            val weeklyQuizzes = activity.take(7).sumOf { it.quizzesCompleted }
+            val alias = curPrefs.leaderboardAlias
+                ?: remoteSummary?.aliasHandle
+                ?: Stage3To8Engines.anonymizeLeaderboardHandle(curPrefs.displayName, curPrefs.guestDeviceId)
+
+            val localAchievements = listOf(
+                AchievementUi("first_quiz", "First Practice Attempt", "Submitted your first practice quiz.", 25, quizzes.isNotEmpty()),
+                AchievementUi("perfect_score", "100% Concept Mastery", "Scored 100% on a quiz with 3+ questions.", 50, quizzes.any { it.totalQuestions >= 3 && it.percentage == 100 }),
+                AchievementUi("flashcard_reviewer", "Spaced Repetition Starter", "Reviewed flashcards using SM-2 memory scheduling.", 20, reviewedCards > 0),
+                AchievementUi("mistake_conqueror", "Mistake Master", "Resolved a missed question in Mistake Master.", 30, resolvedMistakes > 0),
+                AchievementUi("streak_3", "3-Day Study Streak", "Studied on 3 consecutive days.", 40, effectiveStreak >= 3)
+            )
+            val mergedAchievements = if (remoteSummary != null && remoteSummary.achievements.isNotEmpty()) {
+                val localUnlocked = localAchievements.filter { it.unlocked }.map { it.code }.toSet()
+                remoteSummary.achievements.map {
+                    AchievementUi(it.code, it.title, it.description, it.xpReward, it.unlocked || it.code in localUnlocked)
+                }
+            } else {
+                localAchievements
+            }
+
+            val localChallenges = listOf(
+                ChallengeUi("chg_daily_quiz", "Daily Practice Sprint", "Complete at least 1 quiz today.", "daily", 1, minOf(1, todayQuizzes), 25, todayQuizzes >= 1),
+                ChallengeUi("chg_weekly_5", "Weekly KPK Board Marathon", "Complete 5 quizzes this week.", "weekly", 5, minOf(5, weeklyQuizzes), 100, weeklyQuizzes >= 5)
+            )
+            val mergedChallenges = if (remoteSummary != null && remoteSummary.challenges.isNotEmpty()) {
+                val localById = localChallenges.associateBy { it.id }
+                remoteSummary.challenges.map { rc ->
+                    val lc = localById[rc.id]
+                    val current = maxOf(rc.currentCount, lc?.currentCount ?: 0).coerceAtMost(rc.targetCount)
+                    ChallengeUi(rc.id, rc.title, rc.description, rc.cadence, rc.targetCount, current, rc.xpReward, rc.completed || current >= rc.targetCount)
+                }
+            } else {
+                localChallenges
+            }
+
+            val leaderboard = if (curPrefs.leaderboardOptIn) {
+                if (remoteSummary != null && remoteSummary.leaderboard.isNotEmpty()) {
+                    remoteSummary.leaderboard.map {
+                        LeaderboardEntryUi(it.rank, it.aliasHandle, it.boardCode, it.classLevel, if (it.isCurrentUser) maxOf(it.xpTotal, effectiveXp) else it.xpTotal, it.streakDays, it.isCurrentUser)
+                    }
+                } else {
+                    listOf(LeaderboardEntryUi(1, alias, boardCode, classLevel, effectiveXp, effectiveStreak, isCurrentUser = true))
+                }
+            } else emptyList()
+
+            MotivationSummaryUi(
+                xpTotal = effectiveXp,
+                level = effectiveLevel,
+                nextLevelXp = effectiveLevel * 150,
+                currentStreakDays = effectiveStreak,
+                leaderboardOptIn = curPrefs.leaderboardOptIn,
+                aliasHandle = alias,
+                achievements = mergedAchievements,
+                challenges = mergedChallenges,
+                leaderboard = leaderboard
+            )
         }.collect { emit(it) }
     }
 
@@ -2346,7 +2663,7 @@ class OfflineFirstCurriculumRepository(
                 pdfId = pdfId,
                 lastPage = lastPage.coerceAtLeast(1),
                 totalPages = totalPages.coerceAtLeast(1),
-                zoomPercent = zoomPercent.coerceIn(75, 250),
+                zoomPercent = zoomPercent.coerceIn(75, 400),
                 updatedAtEpochMs = System.currentTimeMillis()
             )
         )

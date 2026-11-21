@@ -32,7 +32,7 @@ import {
   searchCatalog,
   stripMcqAnswerKey,
 } from '../db/repository';
-import { HttpError, jsonEnvelope, type D1PreparedStatement, type Env } from '../env';
+import { HttpError, jsonEnvelope, jsonError, type D1PreparedStatement, type Env } from '../env';
 import {
   buildCacheableEnvelopeResponse,
   ifNoneMatchMatches,
@@ -45,8 +45,16 @@ import {
   BackblazeB2Client,
   generateB2PresignedGetUrl,
   isB2Configured,
+  MIN_PRESIGNED_PDF_EXPIRY_SECONDS,
   resolveB2Config,
 } from '../storage/backblazeB2';
+import {
+  buildStrongOrWeakPdfEtag,
+  createMeteredPdfStream,
+  parseByteRangeHeader,
+  secondsUntilUtcMidnight,
+  shouldHonorRangeWithIfRange,
+} from '../storage/pdfRange';
 import { recordStudentActivityDay, resolveStudentFromRequest } from './studentAuthSync';
 
 async function respondWithPublicEdgeCache<T>(
@@ -385,8 +393,17 @@ export async function handlePublicStudentRoutes(
       throw new HttpError(400, 'INVALID_QUIZ_SUBMISSION', 'sessionId, guestDeviceId, and answers array are required.');
     }
 
+    const existingSub = await env.DB.prepare(
+      'SELECT id FROM quiz_submissions WHERE session_id = ? OR id = ? LIMIT 1'
+    )
+      .bind(body.sessionId, `sub_${body.sessionId}`)
+      .first<{ id: string }>();
+    if (existingSub) {
+      throw new HttpError(409, 'QUIZ_ALREADY_SUBMITTED', 'This quiz session has already been submitted.');
+    }
+
     const storedSession = await env.DB.prepare(
-      `SELECT id, subject_id, chapter_id, mode, mcq_ids_json, marks_per_mcq, negative_marking_penalty, pass_percentage
+      `SELECT id, subject_id, chapter_id, mode, mcq_ids_json, marks_per_mcq, negative_marking_penalty, pass_percentage, submitted_at_iso
        FROM exam_sessions WHERE id = ? LIMIT 1`
     )
       .bind(body.sessionId)
@@ -399,7 +416,20 @@ export async function handlePublicStudentRoutes(
         marks_per_mcq: number;
         negative_marking_penalty: number;
         pass_percentage: number;
+        submitted_at_iso: string | null;
       }>();
+
+    if (storedSession?.submitted_at_iso) {
+      throw new HttpError(409, 'QUIZ_ALREADY_SUBMITTED', 'This quiz session has already been submitted.');
+    }
+
+    const dedupedAnswersMap = new Map<string, ApiQuizSubmissionRequest['answers'][number]>();
+    for (const ans of body.answers) {
+      if (ans?.mcqId) {
+        dedupedAnswersMap.set(ans.mcqId, ans);
+      }
+    }
+    const dedupedAnswers = Array.from(dedupedAnswersMap.values());
 
     const sessionMcqIds = storedSession
       ? safeJsonParse<string[]>(storedSession.mcq_ids_json, [])
@@ -407,7 +437,7 @@ export async function handlePublicStudentRoutes(
     const answerIds = Array.from(
       new Set([
         ...sessionMcqIds,
-        ...body.answers.map((a) => a.mcqId).filter(Boolean),
+        ...dedupedAnswers.map((a) => a.mcqId).filter(Boolean),
       ])
     );
     const mcqs =
@@ -420,6 +450,7 @@ export async function handlePublicStudentRoutes(
     const authoritativeSubmission: ApiQuizSubmissionRequest = storedSession
       ? {
           ...body,
+          answers: dedupedAnswers,
           subjectId: body.subjectId || storedSession.subject_id || '',
           chapterId: body.chapterId ?? storedSession.chapter_id ?? null,
           examMode: (storedSession.mode as ApiQuizSubmissionRequest['examMode']) || body.examMode,
@@ -429,7 +460,10 @@ export async function handlePublicStudentRoutes(
           ),
           passPercentage: Number(storedSession.pass_percentage ?? body.passPercentage ?? 40),
         }
-      : body;
+      : {
+          ...body,
+          answers: dedupedAnswers,
+        };
 
     const result = gradeQuizSubmission(mcqs, authoritativeSubmission);
     const submittedAtIso = body.submittedAtIso || new Date().toISOString();
@@ -468,7 +502,7 @@ export async function handlePublicStudentRoutes(
         result.unansweredCount,
         result.percentage,
         result.elapsedSeconds,
-        JSON.stringify(body.answers),
+        JSON.stringify(dedupedAnswers),
         submittedAtIso,
         examMode,
         result.marksObtained ?? result.correctCount,
@@ -491,7 +525,7 @@ export async function handlePublicStudentRoutes(
       for (const fb of result.perQuestionFeedback) {
         const item = mcqMap.get(fb.mcqId);
         if (!item) continue;
-        const ans = body.answers.find((a) => a.mcqId === fb.mcqId);
+        const ans = dedupedAnswersMap.get(fb.mcqId);
         if (fb.isCorrect) {
           statements.push(
             env.DB.prepare(
@@ -632,50 +666,186 @@ export async function handlePublicStudentRoutes(
   }
 
   const pdfDownloadMatch = path.match(/^\/v1\/pdfs\/([^/]+)\/download$/);
-  if (method === 'GET' && pdfDownloadMatch) {
+  if ((method === 'HEAD' || method === 'GET') && pdfDownloadMatch) {
     const pdfId = decodeURIComponent(pdfDownloadMatch[1]);
     const pdf = await getPdfById(env.DB, pdfId);
     if (!pdf) {
       throw new HttpError(404, 'PDF_NOT_FOUND', `PDF metadata ${pdfId} not found.`);
     }
 
-    const pdfEtag = pdf.checksumSha256 ? `"${pdf.checksumSha256}"` : `W/"${pdf.id}-${pdf.version}"`;
+    const pdfEtag = buildStrongOrWeakPdfEtag(pdf.id, pdf.version, pdf.checksumSha256);
+    const fileName = (pdf.objectKey.split('/').pop() || `${pdf.id}.pdf`).replace(/"/g, '');
+    const disposition = `inline; filename="${fileName}"`;
+
+    if (method === 'HEAD') {
+      let contentLength = pdf.fileSizeBytes;
+      if (contentLength <= 0 && isB2Configured(env)) {
+        const b2Client = new BackblazeB2Client(env, fetchFn);
+        const head = await b2Client.headObject(pdf.objectKey).catch(() => null);
+        if (head?.contentLength && head.contentLength > 0) {
+          contentLength = head.contentLength;
+        }
+      }
+      const headHeaders: Record<string, string> = {
+        ...headers,
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': disposition,
+        'Accept-Ranges': 'bytes',
+        ETag: pdfEtag,
+        'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+        ...(contentLength > 0 ? { 'Content-Length': String(contentLength) } : {}),
+      };
+      if (ifNoneMatchMatches(request, pdfEtag)) {
+        recordUsageDelta({ edgeCacheHits: 1 });
+        return new Response(null, { status: 304, headers: headHeaders });
+      }
+      return new Response(null, { status: 200, headers: headHeaders });
+    }
+
     if (ifNoneMatchMatches(request, pdfEtag)) {
       recordUsageDelta({ edgeCacheHits: 1 });
       return new Response(null, {
         status: 304,
         headers: {
           ...headers,
+          'Accept-Ranges': 'bytes',
           ETag: pdfEtag,
           'Cache-Control': 'public, max-age=3600, s-maxage=86400',
         },
       });
     }
 
-    // Free-tier Backblaze B2 daily egress protection
+    const mode = url.searchParams.get('mode') || 'stream';
+    const rawRange = request.headers.get('Range');
+    const rawIfRange = request.headers.get('If-Range');
+    const honorRange = rawRange ? shouldHonorRangeWithIfRange(rawIfRange, pdfEtag) : false;
+    const parsedRange =
+      rawRange && honorRange ? parseByteRangeHeader(rawRange, pdf.fileSizeBytes) : null;
+
+    if (mode !== 'presigned' && parsedRange && parsedRange.kind !== 'valid') {
+      // Unsatisfiable or malformed Range: return 416 immediately, 0 B2 bytes charged, 0 download_count bump
+      return new Response(null, {
+        status: 416,
+        headers: {
+          ...headers,
+          'Content-Range': `bytes */${Math.max(0, pdf.fileSizeBytes)}`,
+          'Accept-Ranges': 'bytes',
+          ETag: pdfEtag,
+          'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+        },
+      });
+    }
+
+    const validRange = parsedRange?.kind === 'valid' ? parsedRange : null;
+    const incrementDownloadCount = async () => {
+      await env.DB.prepare(
+        'UPDATE past_papers SET download_count = download_count + 1 WHERE pdf_metadata_id = ?'
+      )
+        .bind(pdf.id)
+        .run();
+    };
+
+    // Edge cache lookup for cacheable full PDF objects (supports Range slicing at zero B2 cost)
+    const canonicalCacheReq = new Request(`${url.origin}${url.pathname}`, { method: 'GET' });
+    if (mode === 'stream' && pdf.offlineCacheable) {
+      const edgeCached = await tryMatchWorkerEdgeCache(canonicalCacheReq);
+      if (edgeCached && edgeCached.status === 200 && edgeCached.body) {
+        recordUsageDelta({ edgeCacheHits: 1 });
+        if (validRange) {
+          const fullBuf = new Uint8Array(await edgeCached.arrayBuffer());
+          const reRange = parseByteRangeHeader(rawRange!, fullBuf.byteLength);
+          if (reRange.kind !== 'valid') {
+            return new Response(null, {
+              status: 416,
+              headers: {
+                ...headers,
+                'Content-Range': `bytes */${fullBuf.byteLength}`,
+                'Accept-Ranges': 'bytes',
+                ETag: pdfEtag,
+              },
+            });
+          }
+          const slice = fullBuf.slice(reRange.start, reRange.end + 1);
+          if (slice.byteLength > 0) {
+            await incrementDownloadCount().catch(() => undefined);
+          }
+          return new Response(slice, {
+            status: 206,
+            headers: {
+              ...headers,
+              'Content-Type': 'application/pdf',
+              'Content-Disposition': disposition,
+              'Content-Range': `bytes ${reRange.start}-${reRange.end}/${fullBuf.byteLength}`,
+              'Content-Length': String(slice.byteLength),
+              'Accept-Ranges': 'bytes',
+              ETag: pdfEtag,
+              'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+              'X-Imtihan-Cache': 'EDGE-HIT',
+            },
+          });
+        }
+        await incrementDownloadCount().catch(() => undefined);
+        return new Response(edgeCached.body, {
+          status: 200,
+          headers: {
+            ...headers,
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': disposition,
+            'Accept-Ranges': 'bytes',
+            ETag: pdfEtag,
+            'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+            'X-Imtihan-Cache': 'EDGE-HIT',
+            ...(edgeCached.headers.get('Content-Length')
+              ? { 'Content-Length': edgeCached.headers.get('Content-Length') as string }
+              : pdf.fileSizeBytes > 0
+                ? { 'Content-Length': String(pdf.fileSizeBytes) }
+                : {}),
+          },
+        });
+      }
+    }
+
+    // Free-tier Backblaze B2 daily egress protection (counts requested slice bytes, not full file per chunk)
     const [policy, usage] = await Promise.all([
       getCapacityPolicy(env.DB),
       getTodayUsageSnapshot(env.DB),
     ]);
-    const projectedDailyMb = (usage.b2DailyDownloadBytes + pdf.fileSizeBytes) / (1024 * 1024);
+    const estimatedRequestBytes = validRange ? validRange.length : pdf.fileSizeBytes;
+    const projectedDailyMb = (usage.b2DailyDownloadBytes + estimatedRequestBytes) / (1024 * 1024);
     if (policy.autoBlockUncachedPdfAtCritical && projectedDailyMb > policy.b2DailyDownloadSoftCapMb) {
-      throw new HttpError(
+      const retryAfterSec = secondsUntilUtcMidnight();
+      return jsonError(
         429,
         'B2_DAILY_BANDWIDTH_CAP',
-        `Daily Backblaze B2 download soft cap (${policy.b2DailyDownloadSoftCapMb} MB) reached to protect zero-cost free tier. Previously cached offline PDFs remain available.`
+        `Daily Backblaze B2 download soft cap (${policy.b2DailyDownloadSoftCapMb} MB) reached to protect zero-cost free tier. Previously cached offline PDFs remain available.`,
+        env,
+        {
+          ...headers,
+          'Retry-After': String(retryAfterSec),
+          'Accept-Ranges': 'bytes',
+        }
       );
     }
 
-    const mode = url.searchParams.get('mode') || 'stream';
     if (mode === 'presigned') {
-      const presignedB2Url = await generateB2PresignedGetUrl(pdf.objectKey, env, 900);
-      recordUsageDelta({ b2DownloadBytes: pdf.fileSizeBytes, b2DownloadCount: 1 });
+      const expiresInSeconds = MIN_PRESIGNED_PDF_EXPIRY_SECONDS;
+      const presignedB2Url = await generateB2PresignedGetUrl(
+        pdf.objectKey,
+        env,
+        expiresInSeconds,
+        new Date(),
+        { responseContentDisposition: disposition }
+      );
+      recordUsageDelta({ b2DownloadCount: 1 });
       const payload: SignedDownloadUrlResponse = {
         pdfId: pdf.id,
         objectKey: pdf.objectKey,
         downloadUrl: `${url.origin}/v1/pdfs/${encodeURIComponent(pdf.id)}/download`,
         presignedB2Url,
-        expiresInSeconds: 900,
+        expiresInSeconds,
+        fileSizeBytes: pdf.fileSizeBytes,
+        checksumSha256: pdf.checksumSha256,
+        acceptRanges: true,
       };
       return jsonEnvelope(payload, env, 200, {
         ...headers,
@@ -684,28 +854,94 @@ export async function handlePublicStudentRoutes(
     }
 
     const b2Client = new BackblazeB2Client(env, fetchFn);
-    const upstream = await b2Client.getObject(pdf.objectKey);
+    // Worker already validated client If-Range against pdfEtag; never forward Worker SHA-256 ETag to B2 S3 (MD5 ETag)
+    const upstream = await b2Client.getObject(
+      pdf.objectKey,
+      validRange
+        ? { range: validRange.header }
+        : undefined
+    );
 
-    recordUsageDelta({ b2DownloadBytes: pdf.fileSizeBytes, b2DownloadCount: 1 });
-    await env.DB.prepare(
-      'UPDATE past_papers SET download_count = download_count + 1 WHERE pdf_metadata_id = ?'
-    )
-      .bind(pdf.id)
-      .run();
+    if (upstream.status === 416) {
+      return new Response(null, {
+        status: 416,
+        headers: {
+          ...headers,
+          'Content-Range': upstream.headers.get('Content-Range') || `bytes */${Math.max(0, pdf.fileSizeBytes)}`,
+          'Accept-Ranges': 'bytes',
+          ETag: pdfEtag,
+          'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+        },
+      });
+    }
 
-    const fileName = pdf.objectKey.split('/').pop() || `${pdf.id}.pdf`;
-    return new Response(upstream.body, {
-      status: 200,
-      headers: {
-        ...headers,
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="${fileName.replace(/"/g, '')}"`,
-        ETag: pdfEtag,
-        'Cache-Control': 'public, max-age=3600, s-maxage=86400',
-        ...(upstream.headers.get('Content-Length')
-          ? { 'Content-Length': upstream.headers.get('Content-Length') as string }
-          : {}),
+    const upstreamStatus = upstream.status === 206 ? 206 : 200;
+    const responseHeaders: Record<string, string> = {
+      ...headers,
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': disposition,
+      'Accept-Ranges': 'bytes',
+      ETag: pdfEtag,
+      'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+    };
+
+    const upstreamLen = upstream.headers.get('Content-Length');
+    if (upstreamStatus === 206) {
+      const contentRange =
+        upstream.headers.get('Content-Range') ||
+        (validRange ? `bytes ${validRange.start}-${validRange.end}/${pdf.fileSizeBytes}` : null);
+      if (contentRange) {
+        responseHeaders['Content-Range'] = contentRange;
+      }
+      if (upstreamLen) {
+        responseHeaders['Content-Length'] = upstreamLen;
+      } else if (validRange) {
+        responseHeaders['Content-Length'] = String(validRange.length);
+      }
+    } else if (upstreamLen) {
+      responseHeaders['Content-Length'] = upstreamLen;
+    } else if (pdf.fileSizeBytes > 0) {
+      responseHeaders['Content-Length'] = String(pdf.fileSizeBytes);
+    }
+
+    if (!upstream.body) {
+      return new Response(null, { status: upstreamStatus, headers: responseHeaders });
+    }
+
+    let bodyToMeter: ReadableStream<Uint8Array> = upstream.body;
+    const edgeCacheAvailable = Boolean(
+      (globalThis as unknown as { caches?: { default?: Cache } }).caches?.default
+    );
+    if (
+      edgeCacheAvailable &&
+      upstreamStatus === 200 &&
+      pdf.offlineCacheable &&
+      pdf.fileSizeBytes > 0 &&
+      pdf.fileSizeBytes <= 25 * 1024 * 1024
+    ) {
+      const [clientBranch, cacheBranch] = upstream.body.tee();
+      bodyToMeter = clientBranch;
+      void tryPutWorkerEdgeCache(
+        canonicalCacheReq,
+        new Response(cacheBranch, { status: 200, headers: responseHeaders })
+      );
+    }
+
+    const meteredBody = createMeteredPdfStream(bodyToMeter, {
+      onFirstByte: incrementDownloadCount,
+      onFinalize: (bytesServed, firstByteSeen) => {
+        if (bytesServed > 0) {
+          recordUsageDelta({
+            b2DownloadBytes: bytesServed,
+            b2DownloadCount: firstByteSeen ? 1 : 0,
+          });
+        }
       },
+    });
+
+    return new Response(meteredBody, {
+      status: upstreamStatus,
+      headers: responseHeaders,
     });
   }
 
